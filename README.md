@@ -13,8 +13,11 @@ Plan and milestones: `docs/v2-unreal-plan.md` in the toll-sim repo.
 - `Source/TollSimUE/`
   - `TollTraffic`: a port of the browser's `traffic.js` and `vehicle-geometry.js` (decoding, interpolation, front-bumper to centre).
   - `UTollFeedSubsystem`: the live stream with replay fallback, and the 2.4 s render clock.
-  - `ATollTrafficActor`: the scene.
-- `Content/Data/`: `replay.json` and `road.json` from toll-sim, plus `golden-positions.json`, the browser's own output for the replay. All three are refreshed by `Scripts/sync-data.sh`.
+  - `TollPlaza`: plaza layouts and the lane remap that eases vehicles onto the drawn booth lanes (from `plaza-layout.js` and `viewer.js`).
+  - `ATollPlazaActor`: one plaza, built from the browser's exported geometry, with moving booms and booth lamps.
+  - `ATollTrafficActor`: the scene: road, markings, vehicles, sky, camera.
+- `Content/Data/`: `replay.json` and `road.json` from toll-sim, `golden-positions.json` (the browser's own output for the replay), and `Plazas/` (the browser's plaza meshes and textures, written by toll-sim's `viewer/scripts/export-plazas.mjs`). All refreshed by `Scripts/sync-data.sh`.
+- `Content/Toll/Materials/`: three plain materials (vertex colour, textured, flat colour), made by `Scripts/make_materials.py`.
 - `Content/ThirdParty/`: not in git. See `assets-manifest.json` and `ATTRIBUTION.md`.
 
 ## Build and test (no editor needed)
@@ -25,13 +28,20 @@ X:\Epic\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe %CD%\TollSimUE.uprojec
 ```
 
 `TollSim.Traffic.GoldenPositions` replays the recording through the C++ port and
-compares every vehicle against the browser's positions; the limit is 0.1 m.
+compares every vehicle against the browser's positions, before and after the plaza
+lane remap; the limit is 0.1 m.
+
+If the Unreal editor is open, add `-NoHotReloadFromIDE` to the build so its Live
+Coding guard doesn't block it (fine as long as this project isn't loaded there).
 
 ## Run
 
 ```
-UnrealEditor.exe TollSimUE.uproject /Engine/Maps/Entry -game [-TollReplay] [-TollFeed=<url>] [-TollCam=plaza:A1-G01]
+UnrealEditor.exe TollSimUE.uproject /Engine/Maps/Entry -game [-TollReplay] [-TollFeed=<url>] [-TollCam=plaza:A1-G01] [-TollCamEye=back,side,height]
 ```
+
+`-TollCamEye` places the camera in metres from the plaza centre: back along the
+northbound direction, to its right, and up (default `110,22,30`).
 
 `-TollShot=<file.png> -TollShotDelay=<s>` saves a still and quits, which works with `-RenderOffscreen`.
 

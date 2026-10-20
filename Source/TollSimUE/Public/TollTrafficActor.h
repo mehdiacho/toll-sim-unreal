@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "TollPlaza.h"
 #include "TollTrafficActor.generated.h"
 
 class UCameraComponent;
@@ -16,6 +17,7 @@ class USkyAtmosphereComponent;
 class USkyLightComponent;
 class UExponentialHeightFogComponent;
 class UTollFeedSubsystem;
+class ATollPlazaActor;
 
 /** Sim metres (X east, Y north, heading clockwise from north) to Unreal space. */
 namespace TollSpace
@@ -68,11 +70,18 @@ public:
 
 private:
 	bool LoadRoad();
+	void LoadPlazas();
 	void FrameCamera();
+
+	UPROPERTY()
+	TArray<TObjectPtr<ATollPlazaActor>> Plazas; // parallel to Layouts
+
+	TArray<TollPlaza::FLayout> Layouts;
 
 	FVector2D Origin = FVector2D::ZeroVector;
 	TMap<FString, FVector2D> PlazaPos;
 	TMap<FString, double> PlazaHeading;
 	TArray<FTransform> Scratch;
+	TArray<FVector2D> DrawnPos;
 	int32 Drawn = 0;
 };

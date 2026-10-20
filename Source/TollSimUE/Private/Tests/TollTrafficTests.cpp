@@ -9,6 +9,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "TollFeedSubsystem.h"
 #include "TollTraffic.h"
+#include "TollPlaza.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -62,11 +63,25 @@ bool FTollGoldenTest::RunTest(const FString&)
 		Expected.Add(static_cast<int32>(F->GetNumberField(TEXT("k"))), F->GetArrayField(TEXT("v")));
 	}
 
+	// the plaza layouts, for the drawn positions in columns 4 and 5
+	TArray<TollPlaza::FLayout> Layouts;
+	{
+		FString PJson;
+		TSharedPtr<FJsonObject> PRoot;
+		if (!FFileHelper::LoadFileToString(PJson, *(FPaths::ProjectContentDir() / TEXT("Data/Plazas/plazas.json"))) ||
+			!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(PJson), PRoot) || !PRoot.IsValid())
+		{
+			AddError(TEXT("Content/Data/Plazas/plazas.json missing: run Scripts/sync-data.sh"));
+			return false;
+		}
+		TollPlaza::ParseLayouts(PRoot->GetArrayField(TEXT("plazas")), Layouts);
+	}
+
 	TMap<int32, FTrack> Tracks;
 	TMap<int32, FString> Classes;
 	TArray<FVisible> Visible;
-	int32 Compared = 0, Frames_ = 0;
-	double Worst = 0, WorstHeading = 0;
+	int32 Compared = 0, Frames_ = 0, Remapped = 0;
+	double Worst = 0, WorstHeading = 0, WorstDrawn = 0;
 	for (int32 k = 0; k < Frames.Num(); ++k)
 	{
 		for (const FSpawn& S : Frames[k].Spawn) Classes.Add(S.Id, S.Cls);
@@ -96,11 +111,25 @@ bool FTollGoldenTest::RunTest(const FString&)
 			{
 				AddError(FString::Printf(TEXT("frame %d vehicle %d off by %.3f m"), k, Id, D));
 			}
+			if (A.Num() > 5)
+			{
+				const FVector2D Ours2 = TollPlaza::Drawn(Layouts, (*V)->X, (*V)->Y, (*V)->Heading);
+				const FVector2D Theirs(A[4]->AsNumber(), A[5]->AsNumber());
+				const double DD = FVector2D::Distance(Ours2, Theirs);
+				WorstDrawn = FMath::Max(WorstDrawn, DD);
+				if (FVector2D::Distance(Theirs, FVector2D(A[1]->AsNumber(), A[2]->AsNumber())) > 0.01) ++Remapped;
+				if (DD > 0.1)
+				{
+					AddError(FString::Printf(TEXT("frame %d vehicle %d drawn off by %.3f m"), k, Id, DD));
+				}
+			}
 			++Compared;
 		}
 	}
 	TestEqual(TEXT("golden frames checked"), Frames_, Expected.Num());
-	AddInfo(FString::Printf(TEXT("compared %d positions over %d frames; worst %.4f m, worst heading %.3f deg"), Compared, Frames_, Worst, WorstHeading));
+	AddInfo(FString::Printf(TEXT("compared %d positions over %d frames; worst %.4f m, worst heading %.3f deg; %d remapped onto plaza lanes, worst drawn %.4f m"),
+		Compared, Frames_, Worst, WorstHeading, Remapped, WorstDrawn));
+	TestTrue(TEXT("some vehicles remapped onto plaza lanes"), Remapped > 100);
 	TestTrue(TEXT("compared some positions"), Compared > 1000);
 	TestTrue(TEXT("headings within 0.01 deg"), WorstHeading < 0.01);
 	return true;
