@@ -352,6 +352,15 @@ bool ATollTrafficActor::LoadTerrain()
 	{
 		UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(G, this);
 		Mid->SetScalarParameterValue(TEXT("VertexTint"), 2.6);
+		FLinearColor Warm(0.85, 0.8, 0.78); // slightly muted; neutral reads a little too saturated
+		FString TintArg; // -TollGroundTint=r,g,b for tuning
+		if (FParse::Value(FCommandLine::Get(), TEXT("TollGroundTint="), TintArg, false))
+		{
+			TArray<FString> P;
+			if (TintArg.ParseIntoArray(P, TEXT(",")) == 3) Warm = FLinearColor(FCString::Atof(*P[0]), FCString::Atof(*P[1]), FCString::Atof(*P[2]));
+		}
+		Mid->SetVectorParameterValue(TEXT("Tint"), Warm);
+		UE_LOG(LogTollScene, Log, TEXT("terrain: MI_Ground, tint %s"), *Warm.ToString());
 		for (int32 k = 0; k <= Count; ++k) Terrain->SetMaterial(k, Mid);
 	}
 	else if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Toll/Materials/M_VertexColor.M_VertexColor")))

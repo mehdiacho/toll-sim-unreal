@@ -34,7 +34,7 @@ This repo is **v2**, an Unreal Engine 5 rendering of the same corridor. Mehdi's 
 | M1 | Feed parity: SSE plus replay; vehicles at the browser's positions | GoldenPositions test, under 0.1 m | **done** (c1edec0, e046feb) |
 | M2 | Road, markings, the three plazas from the browser's geometry, DEM terrain | stills `docs/stills/m2-*` | **done** (7877196, b859529) |
 | M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **in progress**: vehicles, lamps, wheel spin and time of day done (52b5262, a367164); the clip is not started |
-| M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **in progress**: foliage scatter done (b9976b5); the ground still reads grey; post and VRAM check not started |
+| M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **in progress**: foliage scatter (b9976b5) and Kalahari ground (stills `m4-ground-*`) done; post, horizon band and VRAM check not started |
 | M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | not started |
 
 ## Where everything lives
@@ -106,7 +106,8 @@ Run options:
   - `40,14,6` close
   - `110,22,30` default
   - `150,45,3` low roadside
-- `-TollTime=<solar hour>` sets the time: 14 is day, **18.8 is dusk**, 20.5 is night.
+- `-TollTime=<solar hour>` sets the time: 14 is day, **about 17.9 is dusk** (18.8 is already night), 20.5 is night.
+- `-TollGroundTint=r,g,b` overrides the ground tint (default 0.85,0.8,0.78) for tuning.
 - `-TollEV=<ev>` sets night exposure.
 
 Stills that prove a step go in `docs/stills/` (LFS).
@@ -135,12 +136,10 @@ Stills that prove a step go in `docs/stills/` (LFS).
 
 ## In flight and the next 3 steps
 
-1. **Ground colour.** The terrain uses `MI_Ground`: Rippled Sand and Gravel Ground, multiplied
-   by the terrain vertex colour × `VertexTint` 2.6 (set in `ATollTrafficActor`). It still reads
-   as grey, not red-brown Kalahari. Try a warm `Tint` vector param in `M_Ground`, like the one in
-   `M_Surface`, or a brighter base. Then commit with roadside and wide stills.
+1. **Free Shrubs Pack** (Unreal-format, in the FabLibrary cache): copy into `Content/`, gitignore,
+   add to the manifest and ATTRIBUTION, and try it as more bush variety.
 2. **30 s MRQ dusk clip (M3 proof).** A Level Sequence plus an MRQ config, created by an editor
-   Python script and rendered with `-MoviePipelineConfig` against the replay at TollTime 18.8.
+   Python script and rendered with `-MoviePipelineConfig` against the replay at dusk (TollTime about 17.9; 18.8 is already dark).
    ffmpeg to H.264 and VP9. Clips are deterministic because they use the replay.
 3. **M4 finish.**
    - A horizon band: the sky-atmosphere ground shows as a dark line at the horizon.
@@ -176,6 +175,8 @@ After that comes M5:
   usage flag set, or `-game` silently renders the default grey material.
   - `M_Color` needed `used_with_instanced_static_meshes`; that's why the lamps were invisible.
   - The Megascans and acacia materials need ISM and Nanite.
+- **VertexColor has no "RGB" output pin** in the Python material API. Link its default output
+  (`""`), or the multiply gets 0 and the ground renders black with only sky reflection (it read as grey).
 - **Texture parameters need a default texture of their sampler type.** Normal maps need a
   normal default and masks a mask default; otherwise the material fails to compile and renders
   the default material. `import_assets.py` uses the Gravel Ground textures as defaults.
