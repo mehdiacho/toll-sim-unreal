@@ -1,0 +1,4 @@
+{
+  "note": "Third-party content used by the project. Files live under Content/ThirdParty/ and are never committed; ATTRIBUTION.md carries the credits. Fetch or add each entry, then run Scripts/backup-nas.sh.",
+  "assets": []
+}

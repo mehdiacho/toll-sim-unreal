@@ -1,0 +1,15 @@
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.slnx
+*.suo
+*.VC.db
+*.opendb
+Build/
+# third-party content is listed in assets-manifest.json, never committed
+Content/ThirdParty/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
