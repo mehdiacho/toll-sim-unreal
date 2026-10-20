@@ -13,3 +13,6 @@ Build/
 Content/ThirdParty/
 Plugins/*/Binaries/
 Plugins/*/Intermediate/
+
+# raw downloads awaiting import (DEM tiles, Fab zips)
+Incoming/

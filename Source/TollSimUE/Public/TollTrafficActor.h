@@ -51,6 +51,10 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Toll")
 	TObjectPtr<UProceduralMeshComponent> Road;
 
+	/** Land around the road from the Copernicus DEM (Content/Data/terrain.bin), relative to road level. */
+	UPROPERTY(VisibleAnywhere, Category = "Toll")
+	TObjectPtr<UProceduralMeshComponent> Terrain;
+
 	UPROPERTY(VisibleAnywhere, Category = "Toll")
 	TArray<TObjectPtr<UInstancedStaticMeshComponent>> ClassMeshes;
 
@@ -90,6 +94,7 @@ public:
 
 private:
 	bool LoadRoad();
+	bool LoadTerrain();
 	void LoadPlazas();
 	void FrameCamera();
 

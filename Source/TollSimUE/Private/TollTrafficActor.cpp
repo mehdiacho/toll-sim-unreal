@@ -137,6 +137,10 @@ ATollTrafficActor::ATollTrafficActor()
 	Road->bUseAsyncCooking = true;
 	Road->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	Terrain = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Terrain"));
+	Terrain->SetupAttachment(SceneRoot);
+	Terrain->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	for (int32 i = 0; i < UE_ARRAY_COUNT(Looks); ++i)
 	{
 		UInstancedStaticMeshComponent* Ism = CreateDefaultSubobject<UInstancedStaticMeshComponent>(*FString::Printf(TEXT("Class_%s"), Looks[i].Cls));
@@ -197,6 +201,155 @@ ATollTrafficActor::ATollTrafficActor()
 	Post->bUnbound = true;
 }
 
+bool ATollTrafficActor::LoadTerrain()
+{
+	// format: Scripts/make_terrain.py
+	TArray<uint8> Bytes;
+	const FString Path = FPaths::ProjectContentDir() / TEXT("Data/terrain.bin");
+	if (!FFileHelper::LoadFileToArray(Bytes, *Path) || Bytes.Num() < 20 || FMemory::Memcmp(Bytes.GetData(), "TTER", 4) != 0)
+	{
+		UE_LOG(LogTollScene, Warning, TEXT("terrain unavailable: %s"), *Path);
+		return false;
+	}
+	int32 Version, Cells, Count;
+	float Cell;
+	FMemory::Memcpy(&Version, &Bytes[4], 4);
+	FMemory::Memcpy(&Cells, &Bytes[8], 4);
+	FMemory::Memcpy(&Cell, &Bytes[12], 4);
+	FMemory::Memcpy(&Count, &Bytes[16], 4);
+	const int32 N = Cells + 1;
+	const int64 Stride = 8 + int64(N) * N * 2;
+	if (Version != 1 || Cells <= 0 || 20 + Stride * Count != Bytes.Num())
+	{
+		UE_LOG(LogTollScene, Error, TEXT("terrain.bin: unexpected layout (v%d, %d cells, %d chunks, %d bytes)"), Version, Cells, Count, Bytes.Num());
+		return false;
+	}
+	const double Size = Cells * double(Cell);
+
+	// dry Kalahari-edge soil: reddish on slopes, grassier in the hollows, broken up by noise
+	const FLinearColor Soil = FLinearColor::FromSRGBColor(FColor(0xa8, 0x96, 0x7c));
+	const FLinearColor Rock = FLinearColor::FromSRGBColor(FColor(0x8e, 0x6c, 0x55));
+	const FLinearColor Grass = FLinearColor::FromSRGBColor(FColor(0x86, 0x84, 0x62));
+	const auto Hash = [](int64 X, int64 Y)
+	{
+		uint32 H = uint32(X * 73856093) ^ uint32(Y * 19349663);
+		H ^= H >> 13;
+		H *= 0x5bd1e995;
+		H ^= H >> 15;
+		return double(H & 0xffff) / 65535.0;
+	};
+	// value noise over Scale grid cells, smoothly interpolated, for patches wider than a cell
+	const auto Smooth = [&Hash](int64 X, int64 Y, int64 Scale)
+	{
+		const int64 X0 = FMath::FloorToInt64(double(X) / Scale), Y0 = FMath::FloorToInt64(double(Y) / Scale);
+		double Fx = double(X - X0 * Scale) / Scale, Fy = double(Y - Y0 * Scale) / Scale;
+		Fx = Fx * Fx * (3 - 2 * Fx);
+		Fy = Fy * Fy * (3 - 2 * Fy);
+		const double A = FMath::Lerp(Hash(X0 * 7919, Y0), Hash((X0 + 1) * 7919, Y0), Fx);
+		const double B = FMath::Lerp(Hash(X0 * 7919, Y0 + 1), Hash((X0 + 1) * 7919, Y0 + 1), Fx);
+		return FMath::Lerp(A, B, Fy);
+	};
+
+	FIntPoint Lo(MAX_int32, MAX_int32), Hi(MIN_int32, MIN_int32);
+	TSet<FIntPoint> Have;
+	TArray<FVector> V, Nrm;
+	TArray<FLinearColor> Col;
+	TArray<int32> T;
+	TArray<int16> H;
+	H.SetNumUninitialized(N * N);
+	for (int32 k = 0; k < Count; ++k)
+	{
+		const uint8* P = &Bytes[20 + Stride * k];
+		int32 Cx, Cy;
+		FMemory::Memcpy(&Cx, P, 4);
+		FMemory::Memcpy(&Cy, P + 4, 4);
+		FMemory::Memcpy(H.GetData(), P + 8, N * N * 2);
+		Have.Add(FIntPoint(Cx, Cy));
+		Lo = FIntPoint(FMath::Min(Lo.X, Cx), FMath::Min(Lo.Y, Cy));
+		Hi = FIntPoint(FMath::Max(Hi.X, Cx), FMath::Max(Hi.Y, Cy));
+
+		V.Reset();
+		Nrm.Reset();
+		Col.Reset();
+		T.Reset();
+		const auto Z = [&](int32 i, int32 j) { return H[FMath::Clamp(j, 0, Cells) * N + FMath::Clamp(i, 0, Cells)] * 0.1; };
+		for (int32 j = 0; j < N; ++j)
+		{
+			for (int32 i = 0; i < N; ++i)
+			{
+				const double X = Cx * Size + i * Cell, Y = Cy * Size + j * Cell;
+				const double Dx = (Z(i + 1, j) - Z(i - 1, j)) / (2 * Cell);
+				const double Dy = (Z(i, j + 1) - Z(i, j - 1)) / (2 * Cell);
+				V.Add(TollSpace::ToWorld(Origin, X, Y, Z(i, j)));
+				Nrm.Add(FVector(-Dx, Dy, 1).GetSafeNormal()); // sim y is Unreal -Y
+				const double Slope = FMath::Clamp(FMath::Sqrt(Dx * Dx + Dy * Dy) * 4, 0.0, 1.0);
+				const double Hollow = FMath::Clamp((Z(i - 2, j) + Z(i + 2, j) + Z(i, j - 2) + Z(i, j + 2)) / 4 - Z(i, j), 0.0, 1.5) / 1.5;
+				const int64 Gx = int64(Cx) * Cells + i, Gy = int64(Cy) * Cells + j;
+				const double Noise = Hash(Gx, Gy) * 0.2 + Smooth(Gx, Gy, 4) * 0.35 + Smooth(Gx, Gy, 16) * 0.45;
+				FLinearColor C = FMath::Lerp(Soil, Grass, float(FMath::Clamp(Hollow + (Noise - 0.5) * 1.4, 0.0, 1.0)));
+				C = FMath::Lerp(C, Rock, float(Slope));
+				Col.Add(C * float(0.92 + Noise * 0.16));
+			}
+		}
+		for (int32 j = 0; j < Cells; ++j)
+		{
+			for (int32 i = 0; i < Cells; ++i)
+			{
+				// same winding as the flat ground: Unreal +Y is sim -y
+				const int32 A = (j + 1) * N + i, B = j * N + i, C = (j + 1) * N + i + 1, D = j * N + i + 1;
+				T.Append({A, B, C, C, B, D});
+			}
+		}
+		Terrain->CreateMeshSection_LinearColor(k, V, T, Nrm, {}, Col, {}, false);
+	}
+
+	// flat ground at the edge height (make_terrain.py fades the relief to -0.25 m) in the
+	// chunks the corridor misses, then four slabs out to the horizon around that box
+	const double Edge = -0.25;
+	const FLinearColor Flat = Soil * 0.97f;
+	V.Reset();
+	Nrm.Reset();
+	Col.Reset();
+	T.Reset();
+	const auto Quad = [&](double X0, double Y0, double X1, double Y1)
+	{
+		const int32 B = V.Num();
+		V.Add(TollSpace::ToWorld(Origin, X0, Y1, Edge));
+		V.Add(TollSpace::ToWorld(Origin, X1, Y1, Edge));
+		V.Add(TollSpace::ToWorld(Origin, X0, Y0, Edge));
+		V.Add(TollSpace::ToWorld(Origin, X1, Y0, Edge));
+		for (int32 i = 0; i < 4; ++i)
+		{
+			Nrm.Add(FVector::UpVector);
+			Col.Add(Flat);
+		}
+		T.Append({B, B + 2, B + 1, B + 1, B + 2, B + 3});
+	};
+	for (int32 Cy = Lo.Y; Cy <= Hi.Y; ++Cy)
+	{
+		for (int32 Cx = Lo.X; Cx <= Hi.X; ++Cx)
+		{
+			if (!Have.Contains(FIntPoint(Cx, Cy))) Quad(Cx * Size, Cy * Size, (Cx + 1) * Size, (Cy + 1) * Size);
+		}
+	}
+	const double X0 = Lo.X * Size, Y0 = Lo.Y * Size, X1 = (Hi.X + 1) * Size, Y1 = (Hi.Y + 1) * Size;
+	const double Far = 200000.0;
+	Quad(X0 - Far, Y1, X1 + Far, Y1 + Far);
+	Quad(X0 - Far, Y0 - Far, X1 + Far, Y0);
+	Quad(X0 - Far, Y0, X0, Y1);
+	Quad(X1, Y0, X1 + Far, Y1);
+	Terrain->CreateMeshSection_LinearColor(Count, V, T, Nrm, {}, Col, {}, false);
+
+	if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Toll/Materials/M_VertexColor.M_VertexColor")))
+	{
+		UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(M, this);
+		Mid->SetScalarParameterValue(TEXT("Roughness"), 0.95f);
+		for (int32 k = 0; k <= Count; ++k) Terrain->SetMaterial(k, Mid);
+	}
+	UE_LOG(LogTollScene, Log, TEXT("terrain: %d chunks of %d x %.0f m"), Count, Cells, Cell);
+	return true;
+}
+
 bool ATollTrafficActor::LoadRoad()
 {
 	const FString Path = FPaths::ProjectContentDir() / TEXT("Data/road.json");
@@ -254,11 +407,14 @@ bool ATollTrafficActor::LoadRoad()
 	Road->CreateMeshSection(3, White.V, White.T, White.N, {}, {}, {}, false);
 	Road->CreateMeshSection(4, Yellow.V, Yellow.T, Yellow.N, {}, {}, {}, false);
 
-	// a sand-coloured ground under everything, until the terrain milestone
-	const double Half = 200000.0; // metres
-	const FVector C = TollSpace::ToWorld(Origin, Origin.X, Origin.Y, 0);
-	TArray<FVector> GV = {C + FVector(-Half, -Half, 0) * 100, C + FVector(Half, -Half, 0) * 100, C + FVector(-Half, Half, 0) * 100, C + FVector(Half, Half, 0) * 100};
-	Road->CreateMeshSection(1, GV, {0, 2, 1, 1, 2, 3}, {FVector::UpVector, FVector::UpVector, FVector::UpVector, FVector::UpVector}, {}, {}, {}, false);
+	// without terrain data, a flat sand-coloured ground under everything
+	if (!LoadTerrain())
+	{
+		const double Half = 200000.0; // metres
+		const FVector C = TollSpace::ToWorld(Origin, Origin.X, Origin.Y, 0);
+		TArray<FVector> GV = {C + FVector(-Half, -Half, 0) * 100, C + FVector(Half, -Half, 0) * 100, C + FVector(-Half, Half, 0) * 100, C + FVector(Half, Half, 0) * 100};
+		Road->CreateMeshSection(1, GV, {0, 2, 1, 1, 2, 3}, {FVector::UpVector, FVector::UpVector, FVector::UpVector, FVector::UpVector}, {}, {}, {}, false);
+	}
 
 	if (UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
 	{
@@ -269,7 +425,7 @@ bool ATollTrafficActor::LoadRoad()
 			Road->SetMaterial(Section, M);
 		};
 		Tint(0, FColor(0x3b, 0x3d, 0x40)); // asphalt
-		Tint(1, FColor(0xd8, 0xc9, 0xa0)); // sand, until the terrain milestone
+		Tint(1, FColor(0xb5, 0x9a, 0x72)); // flat ground, when there is no terrain data
 		Tint(2, FColor(0x8a, 0x7a, 0x5c)); // gravel shoulder
 		Tint(3, FColor(0xe9, 0xe9, 0xe2)); // white lines
 		Tint(4, FColor(0xe2, 0xb3, 0x3c)); // yellow centre line

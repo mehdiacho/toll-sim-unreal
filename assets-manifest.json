@@ -1,4 +1,20 @@
 {
   "note": "Third-party content used by the project. Files live under Content/ThirdParty/ and are never committed; ATTRIBUTION.md carries the credits. Fetch or add each entry, then run Scripts/backup-nas.sh.",
-  "assets": []
+  "assets": [
+    {
+      "name": "Copernicus DEM GLO-30 (4 tiles)",
+      "kind": "elevation data",
+      "source": "https://copernicus-dem-30m.s3.amazonaws.com/",
+      "files": [
+        "Copernicus_DSM_COG_10_S25_00_E025_00_DEM.tif",
+        "Copernicus_DSM_COG_10_S25_00_E026_00_DEM.tif",
+        "Copernicus_DSM_COG_10_S24_00_E026_00_DEM.tif",
+        "Copernicus_DSM_COG_10_S23_00_E026_00_DEM.tif"
+      ],
+      "local": "Incoming/dem/ (not committed, 142 MB)",
+      "derived": "Content/Data/terrain.bin via Scripts/make_terrain.py",
+      "licence": "Copernicus DEM licence (free use with attribution)",
+      "attribution": "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA"
+    }
+  ]
 }

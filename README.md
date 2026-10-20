@@ -15,8 +15,8 @@ Plan and milestones: `docs/v2-unreal-plan.md` in the toll-sim repo.
   - `UTollFeedSubsystem`: the live stream with replay fallback, and the 2.4 s render clock.
   - `TollPlaza`: plaza layouts and the lane remap that eases vehicles onto the drawn booth lanes (from `plaza-layout.js` and `viewer.js`).
   - `ATollPlazaActor`: one plaza, built from the browser's exported geometry, with moving booms and booth lamps.
-  - `ATollTrafficActor`: the scene: road, markings, vehicles, sky, camera.
-- `Content/Data/`: `replay.json` and `road.json` from toll-sim, `golden-positions.json` (the browser's own output for the replay), and `Plazas/` (the browser's plaza meshes and textures, written by toll-sim's `viewer/scripts/export-plazas.mjs`). All refreshed by `Scripts/sync-data.sh`.
+  - `ATollTrafficActor`: the scene: terrain, road, markings, vehicles, sky, camera.
+- `Content/Data/`: `replay.json` and `road.json` from toll-sim, `golden-positions.json` (the browser's own output for the replay), and `Plazas/` (the browser's plaza meshes and textures, written by toll-sim's `viewer/scripts/export-plazas.mjs`). All refreshed by `Scripts/sync-data.sh`. `terrain.bin` is the land around the road, from the Copernicus GLO-30 DEM: `python Scripts/make_terrain.py <dem-dir>` (heights relative to the nearest road point, flattened under the road and plazas).
 - `Content/Toll/Materials/`: three plain materials (vertex colour, textured, flat colour), made by `Scripts/make_materials.py`.
 - `Content/ThirdParty/`: not in git. See `assets-manifest.json` and `ATTRIBUTION.md`.
 
