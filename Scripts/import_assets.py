@@ -277,7 +277,7 @@ def main():
         instance(surface, f"MI_{name}", f"{DST}/Megascans/{name}", made[name])
         unreal.log(f"toll import: surface {name}")
 
-    gm = made["RippledSand"]  # the cracked mud reads as dark grey under the soil tint
+    gm = made["DryCrackedMud"]  # bushveld soil; the rippled sand reads as dunes
     gg = made["GravelGround"]
     instance(ground, "MI_Ground", f"{DST}/Megascans", {"BaseA": gm["Base"], "NormalA": gm["Normal"], "BaseB": gg["Base"], "NormalB": gg["Normal"]})
 

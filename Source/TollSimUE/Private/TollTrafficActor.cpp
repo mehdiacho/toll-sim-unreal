@@ -352,7 +352,7 @@ bool ATollTrafficActor::LoadTerrain()
 	{
 		UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(G, this);
 		Mid->SetScalarParameterValue(TEXT("VertexTint"), 2.6);
-		FLinearColor Warm(0.85, 0.8, 0.78); // slightly muted; neutral reads a little too saturated
+		FLinearColor Warm(0.5, 0.47, 0.44); // duller, darker bushveld soil rather than dune sand
 		FString TintArg; // -TollGroundTint=r,g,b for tuning
 		if (FParse::Value(FCommandLine::Get(), TEXT("TollGroundTint="), TintArg, false))
 		{
@@ -712,9 +712,9 @@ void ATollTrafficActor::LoadFoliage()
 		bool bShadow;
 	};
 	const FKind Kinds[] = {
-		{TEXT("grass"), {TEXT("/Game/ThirdParty/Megascans/DryGrass"), TEXT("/Game/ThirdParty/Megascans/ThatchingGrass")}, TEXT(""), 0.45, 1.1, 2.2, 0.75, 4.5, 450, 320, false},
-		{TEXT("shrub"), {TEXT("/Game/ThirdParty/Megascans/DeadShrubs"), TEXT("/Game/Namaqualand/Meshes/Foliage/NN")}, TEXT("burchellii|rooibos|Dead_Shrubs"), 0.7, 1.8, 7, 0.35, 6, 900, 650, true},
-		{TEXT("bush"), {TEXT("/Game/Namaqualand/Meshes/Foliage/NN")}, TEXT("searsia_lucida"), 2.2, 4.5, 22, 0.35, 10, 2200, 2600, true},
+		{TEXT("grass"), {TEXT("/Game/ThirdParty/Megascans/DryGrass"), TEXT("/Game/ThirdParty/Megascans/ThatchingGrass")}, TEXT(""), 0.45, 1.1, 1.25, 0.85, 5, 450, 320, false},
+		{TEXT("shrub"), {TEXT("/Game/ThirdParty/Megascans/DeadShrubs"), TEXT("/Game/Namaqualand/Meshes/Foliage/NN")}, TEXT("burchellii|rooibos|Dead_Shrubs"), 0.7, 1.8, 4, 0.4, 6, 900, 650, true},
+		{TEXT("bush"), {TEXT("/Game/Namaqualand/Meshes/Foliage/NN"), TEXT("/Game/GV_FreeShrubsPack/Meshes")}, TEXT("searsia_lucida|_full_"), 1.8, 4.5, 12, 0.4, 10, 2200, 2600, true},
 		{TEXT("acacia"), {TEXT("/Game/ThirdParty/AcaciaTree")}, TEXT(""), 5.0, 8.5, 40, 0.45, 14, 2600, 4000, true},
 		{TEXT("rock"), {TEXT("/Game/Namaqualand/Meshes/General/NN")}, TEXT("boulder_0"), 0.3, 1.6, 18, 0.25, 7, 900, 700, true},
 	};

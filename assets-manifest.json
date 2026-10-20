@@ -66,6 +66,15 @@
    "used": "not used yet",
    "licence": "Fab Standard Licence",
    "attribution": "Quixel Megascans"
+  },
+  {
+   "name": "Free Shrubs Pack (Ultra Realistic Wind)",
+   "kind": "shrub meshes (Unreal content)",
+   "source": "Fab (free); seller listed on Fab as the GV pack (name to confirm)",
+   "local": "%LOCALAPPDATA%/com.epicgames.eglv2/FabLibrary/Free Shrubs Pack (Ultra Realistic Wind)-7ca465ab/Content/GV_FreeShrubsPack/ copied to Content/GV_FreeShrubsPack/ (1.4 GB)",
+   "used": "GV_Vol7_Shrub_*_full_* as bushveld thorn bush",
+   "licence": "Fab Standard Licence (free listing)",
+   "attribution": "Free Shrubs Pack (Ultra Realistic Wind), via Fab"
   }
  ]
 }

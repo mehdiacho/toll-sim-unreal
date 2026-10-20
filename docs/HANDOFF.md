@@ -59,6 +59,7 @@ This repo is **v2**, an Unreal Engine 5 rendering of the same corridor. Mehdi's 
   | Namaqualand Environment (Poly Haven) | `Content/Namaqualand/` (4.7 GB) | copied from the FabLibrary cache |
   | Megascans grass, shrubs, surfaces; Acacia Tree (Incg5764) | `Content/ThirdParty/` (~280 MB) | `Scripts/import_assets.py` from the FabLibrary cache |
   | Megaplants Greasewood | `Content/Megaplant_Library/` | added by Mehdi in the editor; **not used yet** |
+  | Free Shrubs Pack (Ultra Realistic Wind) | `Content/GV_FreeShrubsPack/` (1.4 GB) | copied from the FabLibrary cache; used as thorn bush |
 
   `assets-manifest.json` gives the exact cache folder for each pack.
 - **DEM:** Copernicus GLO-30 tiles are in `Incoming/dem/` (git-ignored). Their output,
@@ -107,7 +108,7 @@ Run options:
   - `110,22,30` default
   - `150,45,3` low roadside
 - `-TollTime=<solar hour>` sets the time: 14 is day, **about 17.9 is dusk** (18.8 is already night), 20.5 is night.
-- `-TollGroundTint=r,g,b` overrides the ground tint (default 0.85,0.8,0.78) for tuning.
+- `-TollGroundTint=r,g,b` overrides the ground tint (default 0.5,0.47,0.44, muted bushveld soil) for tuning.
 - `-TollEV=<ev>` sets night exposure.
 
 Stills that prove a step go in `docs/stills/` (LFS).
@@ -136,8 +137,8 @@ Stills that prove a step go in `docs/stills/` (LFS).
 
 ## In flight and the next 3 steps
 
-1. **Free Shrubs Pack** (Unreal-format, in the FabLibrary cache): copy into `Content/`, gitignore,
-   add to the manifest and ATTRIBUTION, and try it as more bush variety.
+1. **Confirm the Free Shrubs Pack seller name** on its Fab page and fix ATTRIBUTION.md and the
+   manifest (the pack's folder only says "GV").
 2. **30 s MRQ dusk clip (M3 proof).** A Level Sequence plus an MRQ config, created by an editor
    Python script and rendered with `-MoviePipelineConfig` against the replay at dusk (TollTime about 17.9; 18.8 is already dark).
    ffmpeg to H.264 and VP9. Clips are deterministic because they use the replay.
