@@ -6,7 +6,7 @@ SUMO stays authoritative. This client reads the same live SSE feed as the browse
 viewer, falls back to the bundled replay when the feed is down, and places every
 vehicle exactly where the browser does.
 
-Plan and milestones: `docs/v2-unreal-plan.md` in the toll-sim repo.
+Picking this up? Read `docs/HANDOFF.md`. The original plan is `docs/v2-unreal-plan.md` in the toll-sim repo.
 
 ## Layout
 

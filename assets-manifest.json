@@ -57,6 +57,15 @@
    "local": "%LOCALAPPDATA%/com.epicgames.eglv2/FabLibrary/{Dry Cracked Mud-bdf4f488, Gravel Ground-5f67fdd6, Rippled Sand-642bd724, Road Asphalt-37df99dd}/, imported to Content/ThirdParty/Megascans/",
    "licence": "Fab Standard Licence",
    "attribution": "Quixel Megascans"
+  },
+  {
+   "name": "Megaplants: Greasewood",
+   "kind": "plant meshes (Unreal content)",
+   "source": "Fab (free Quixel Megaplants)",
+   "local": "Content/Megaplant_Library/Shrub_Greasewood/, added by Mehdi through the editor's Fab panel",
+   "used": "not used yet",
+   "licence": "Fab Standard Licence",
+   "attribution": "Quixel Megascans"
   }
  ]
 }
