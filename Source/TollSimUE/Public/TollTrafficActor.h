@@ -11,6 +11,7 @@
 
 class UCameraComponent;
 class UInstancedStaticMeshComponent;
+class UHierarchicalInstancedStaticMeshComponent;
 class UProceduralMeshComponent;
 class UDirectionalLightComponent;
 class USkyAtmosphereComponent;
@@ -96,6 +97,11 @@ private:
 	bool LoadRoad();
 	bool LoadTerrain();
 	void LoadModels();
+	void LoadFoliage();
+	/** Terrain height in metres at a sim position, as the terrain mesh draws it. */
+	double GroundZ(double X, double Y) const;
+	/** Distance in metres from a sim position to the nearest lane centreline, up to Max. */
+	double RoadDist(const FVector2D& P, double Max) const;
 	void LoadPlazas();
 	void FrameCamera();
 
@@ -144,6 +150,14 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UInstancedStaticMeshComponent>> ModelMeshes; // keeps the model components alive
+
+	TMap<FIntPoint, TArray<int16>> TerrainChunks; // decimetres, (Cells+1)^2 per chunk
+	int32 TerrainCells = 0;
+	double TerrainCell = 30;
+	TMap<FIntPoint, TArray<FVector2D>> RoadGrid; // lane centreline points in 32 m cells
+
+	UPROPERTY()
+	TArray<TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> FoliageMeshes;
 
 	TArray<FTransform> Scratch;
 	TArray<FTransform> HeadXf, TailXf, BrakeXf;

@@ -3,6 +3,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PostProcessComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
@@ -226,6 +227,8 @@ bool ATollTrafficActor::LoadTerrain()
 		return false;
 	}
 	const double Size = Cells * double(Cell);
+	TerrainCells = Cells;
+	TerrainCell = Cell;
 
 	// dry Kalahari-edge soil: reddish on slopes, grassier in the hollows, broken up by noise
 	const FLinearColor Soil = FLinearColor::FromSRGBColor(FColor(0xa8, 0x96, 0x7c));
@@ -266,6 +269,7 @@ bool ATollTrafficActor::LoadTerrain()
 		FMemory::Memcpy(&Cy, P + 4, 4);
 		FMemory::Memcpy(H.GetData(), P + 8, N * N * 2);
 		Have.Add(FIntPoint(Cx, Cy));
+		TerrainChunks.Add(FIntPoint(Cx, Cy), H);
 		Lo = FIntPoint(FMath::Min(Lo.X, Cx), FMath::Min(Lo.Y, Cy));
 		Hi = FIntPoint(FMath::Max(Hi.X, Cx), FMath::Max(Hi.Y, Cy));
 
@@ -289,7 +293,9 @@ bool ATollTrafficActor::LoadTerrain()
 				const double Noise = Hash(Gx, Gy) * 0.2 + Smooth(Gx, Gy, 4) * 0.35 + Smooth(Gx, Gy, 16) * 0.45;
 				FLinearColor C = FMath::Lerp(Soil, Grass, float(FMath::Clamp(Hollow + (Noise - 0.5) * 1.4, 0.0, 1.0)));
 				C = FMath::Lerp(C, Rock, float(Slope));
-				Col.Add(C * float(0.92 + Noise * 0.16));
+				C *= float(0.92 + Noise * 0.16);
+				C.A = float(FMath::Clamp(Slope * 1.5 + (Smooth(Gx, Gy, 8) - 0.45) * 2.0, 0.0, 1.0));
+				Col.Add(C);
 			}
 		}
 		for (int32 j = 0; j < Cells; ++j)
@@ -341,7 +347,14 @@ bool ATollTrafficActor::LoadTerrain()
 	Quad(X1, Y0, X1 + Far, Y1);
 	Terrain->CreateMeshSection_LinearColor(Count, V, T, Nrm, {}, Col, {}, false);
 
-	if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Toll/Materials/M_VertexColor.M_VertexColor")))
+	// Megascans ground (Scripts/import_assets.py, not committed) when present, else plain vertex colour
+	if (UMaterialInterface* G = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/ThirdParty/Megascans/MI_Ground.MI_Ground")))
+	{
+		UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(G, this);
+		Mid->SetScalarParameterValue(TEXT("VertexTint"), 2.6);
+		for (int32 k = 0; k <= Count; ++k) Terrain->SetMaterial(k, Mid);
+	}
+	else if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Toll/Materials/M_VertexColor.M_VertexColor")))
 	{
 		UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(M, this);
 		Mid->SetScalarParameterValue(TEXT("Roughness"), 0.95f);
@@ -380,6 +393,16 @@ bool ATollTrafficActor::LoadRoad()
 			P.Add(FVector2D(XY[0]->AsNumber(), XY[1]->AsNumber()));
 		}
 		if (P.Num() < 2) continue;
+		for (int32 i = 0; i + 1 < P.Num(); ++i)
+		{
+			const int32 Steps = FMath::Max(1, FMath::CeilToInt((P[i + 1] - P[i]).Size() / 4.0));
+			for (int32 s = 0; s < Steps; ++s)
+			{
+				const FVector2D Q = FMath::Lerp(P[i], P[i + 1], double(s) / Steps);
+				RoadGrid.FindOrAdd(FIntPoint(FMath::FloorToInt(Q.X / 32), FMath::FloorToInt(Q.Y / 32))).Add(Q);
+			}
+		}
+		RoadGrid.FindOrAdd(FIntPoint(FMath::FloorToInt(P.Last().X / 32), FMath::FloorToInt(P.Last().Y / 32))).Add(P.Last());
 		const double W = Lane->GetNumberField(TEXT("w"));
 		Ribbon(P, Origin, W / 2, -W / 2, 0.03, Asphalt);
 		FString EdgeId = Lane->GetStringField(TEXT("id"));
@@ -428,6 +451,19 @@ bool ATollTrafficActor::LoadRoad()
 		Tint(0, FColor(0x3b, 0x3d, 0x40)); // asphalt
 		Tint(1, FColor(0xb5, 0x9a, 0x72)); // flat ground, when there is no terrain data
 		Tint(2, FColor(0x8a, 0x7a, 0x5c)); // gravel shoulder
+		// Megascans asphalt and gravel when imported; the ribbons carry no vertex colour, so no tint
+		const auto Surface = [&](int32 Section, const TCHAR* Path, FLinearColor Tint)
+		{
+			if (UMaterialInterface* S = LoadObject<UMaterialInterface>(nullptr, Path))
+			{
+				UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(S, this);
+				M->SetScalarParameterValue(TEXT("VertexTintAmount"), 0.f);
+				M->SetVectorParameterValue(TEXT("Tint"), Tint);
+				Road->SetMaterial(Section, M);
+			}
+		};
+		Surface(0, TEXT("/Game/ThirdParty/Megascans/RoadAsphalt/MI_RoadAsphalt.MI_RoadAsphalt"), FLinearColor(0.42f, 0.42f, 0.44f)); // weathered, not new
+		Surface(2, TEXT("/Game/ThirdParty/Megascans/GravelGround/MI_GravelGround.MI_GravelGround"), FLinearColor(0.85f, 0.72f, 0.58f));
 		Tint(3, FColor(0xe9, 0xe9, 0xe2)); // white lines
 		Tint(4, FColor(0xe2, 0xb3, 0x3c)); // yellow centre line
 		for (int32 i = 0; i < ClassMeshes.Num(); ++i)
@@ -613,6 +649,151 @@ void ATollTrafficActor::LoadModels()
 	UE_LOG(LogTollScene, Log, TEXT("vehicles: %d detailed models%s"), Models.Num(), Models.Num() ? TEXT("") : TEXT(" (City Sample Vehicles not installed; drawing boxes)"));
 }
 
+double ATollTrafficActor::GroundZ(double X, double Y) const
+{
+	if (TerrainCells <= 0) return 0;
+	const double Size = TerrainCells * TerrainCell;
+	const int32 Cx = FMath::FloorToInt(X / Size), Cy = FMath::FloorToInt(Y / Size);
+	const TArray<int16>* H = TerrainChunks.Find(FIntPoint(Cx, Cy));
+	if (!H) return -0.25; // the flat fill around the corridor
+	const int32 N = TerrainCells + 1;
+	const double U = (X - Cx * Size) / TerrainCell, V = (Y - Cy * Size) / TerrainCell;
+	const int32 i = FMath::Clamp(FMath::FloorToInt(U), 0, TerrainCells - 1), j = FMath::Clamp(FMath::FloorToInt(V), 0, TerrainCells - 1);
+	const double Fx = U - i, Fy = V - j;
+	const auto Z = [&](int32 a, int32 b) { return (*H)[b * N + a] * 0.1; };
+	// the mesh splits each cell along (i,j)-(i+1,j+1)
+	if (Fy >= Fx) return Z(i, j) + Fy * (Z(i, j + 1) - Z(i, j)) + Fx * (Z(i + 1, j + 1) - Z(i, j + 1));
+	return Z(i, j) + Fx * (Z(i + 1, j) - Z(i, j)) + Fy * (Z(i + 1, j + 1) - Z(i + 1, j));
+}
+
+double ATollTrafficActor::RoadDist(const FVector2D& P, double Max) const
+{
+	double Best = Max * Max;
+	const int32 Gx = FMath::FloorToInt(P.X / 32), Gy = FMath::FloorToInt(P.Y / 32);
+	const int32 R = FMath::CeilToInt(Max / 32);
+	for (int32 dy = -R; dy <= R; ++dy)
+	{
+		for (int32 dx = -R; dx <= R; ++dx)
+		{
+			if (const TArray<FVector2D>* Pts = RoadGrid.Find(FIntPoint(Gx + dx, Gy + dy)))
+			{
+				for (const FVector2D& Q : *Pts) Best = FMath::Min(Best, FVector2D::DistSquared(P, Q));
+			}
+		}
+	}
+	return FMath::Sqrt(Best);
+}
+
+void ATollTrafficActor::LoadFoliage()
+{
+	// Kalahari bushveld around the plazas: dry grass, low shrubs, bush and acacia, some rock.
+	// Megascans plants and the acacia come from Scripts/import_assets.py, the bushes and rocks
+	// from the Namaqualand pack (searsia stands in for mopane); none of it is committed.
+	struct FKind
+	{
+		const TCHAR* Name;
+		TArray<FString> Paths; // folders searched for static meshes
+		FString Contains;      // name filter, empty for all
+		double MinH, MaxH;     // metres
+		double Grid;           // candidate spacing, m
+		double Chance;         // of a candidate being planted, before the patch noise
+		double Clear;          // from a lane centreline, m
+		double Radius;         // around each plaza, m
+		double Cull;           // m
+		bool bShadow;
+	};
+	const FKind Kinds[] = {
+		{TEXT("grass"), {TEXT("/Game/ThirdParty/Megascans/DryGrass"), TEXT("/Game/ThirdParty/Megascans/ThatchingGrass")}, TEXT(""), 0.45, 1.1, 2.2, 0.75, 4.5, 450, 320, false},
+		{TEXT("shrub"), {TEXT("/Game/ThirdParty/Megascans/DeadShrubs"), TEXT("/Game/Namaqualand/Meshes/Foliage/NN")}, TEXT("burchellii|rooibos|Dead_Shrubs"), 0.7, 1.8, 7, 0.35, 6, 900, 650, true},
+		{TEXT("bush"), {TEXT("/Game/Namaqualand/Meshes/Foliage/NN")}, TEXT("searsia_lucida"), 2.2, 4.5, 22, 0.35, 10, 2200, 2600, true},
+		{TEXT("acacia"), {TEXT("/Game/ThirdParty/AcaciaTree")}, TEXT(""), 5.0, 8.5, 40, 0.45, 14, 2600, 4000, true},
+		{TEXT("rock"), {TEXT("/Game/Namaqualand/Meshes/General/NN")}, TEXT("boulder_0"), 0.3, 1.6, 18, 0.25, 7, 900, 700, true},
+	};
+	IAssetRegistry& Registry = IAssetRegistry::GetChecked();
+	FRandomStream Rand(20261020);
+	int32 Total = 0;
+	for (const FKind& K : Kinds)
+	{
+		TArray<FString> Filters;
+		K.Contains.ParseIntoArray(Filters, TEXT("|"));
+		TArray<UStaticMesh*> Meshes;
+		for (const FString& Path : K.Paths)
+		{
+			Registry.ScanPathsSynchronous({Path});
+			TArray<FAssetData> Assets;
+			Registry.GetAssetsByPath(FName(*Path), Assets, true);
+			for (const FAssetData& A : Assets)
+			{
+				const FString N = A.AssetName.ToString();
+				if (Filters.Num() && !Filters.ContainsByPredicate([&N](const FString& F) { return N.Contains(F); })) continue;
+				UStaticMesh* Sm = Cast<UStaticMesh>(A.GetAsset());
+				if (!Sm) continue;
+				// some plant variations are fallen litter lying flat; scaled to a plant's height they become long ribbons
+				const FVector E = Sm->GetBoundingBox().GetSize();
+				if (E.Z < 0.4 * FMath::Max(E.X, E.Y)) continue;
+				Meshes.Add(Sm);
+			}
+		}
+		if (Meshes.Num() == 0)
+		{
+			UE_LOG(LogTollScene, Log, TEXT("foliage: no %s meshes (assets not imported)"), K.Name);
+			continue;
+		}
+		TArray<TArray<FTransform>> Xf;
+		Xf.SetNum(Meshes.Num());
+		TSet<FIntPoint> Done; // candidates shared between overlapping plaza discs
+		for (const auto& Pz : PlazaPos)
+		{
+			const FVector2D C = Pz.Value;
+			const int32 R = FMath::CeilToInt(K.Radius / K.Grid);
+			for (int32 b = -R; b <= R; ++b)
+			{
+				for (int32 a = -R; a <= R; ++a)
+				{
+					const FIntPoint Cell(FMath::FloorToInt(C.X / K.Grid) + a, FMath::FloorToInt(C.Y / K.Grid) + b);
+					if (Done.Contains(Cell)) continue;
+					Done.Add(Cell);
+					FRandomStream R2(int32(HashCombine(GetTypeHash(Cell), GetTypeHash(FString(K.Name)))));
+					const FVector2D P((Cell.X + R2.FRand()) * K.Grid, (Cell.Y + R2.FRand()) * K.Grid);
+					const double D = FVector2D::Distance(P, C);
+					if (D > K.Radius) continue;
+					// thin out towards the disc edge, and in broad patches so it isn't uniform
+					const double Patch = 0.5 + 0.5 * FMath::Sin(P.X * 0.013 + FMath::Sin(P.Y * 0.009) * 2.0) * FMath::Cos(P.Y * 0.011 + FMath::Sin(P.X * 0.007) * 2.0);
+					const double Edge = FMath::Clamp((K.Radius - D) / (K.Radius * 0.3), 0.0, 1.0);
+					if (R2.FRand() > K.Chance * (0.35 + 0.9 * Patch) * Edge) continue;
+					if (D < 45) continue; // the plaza apron and buildings
+					if (RoadDist(P, K.Clear + 1) < K.Clear) continue;
+					const int32 Mi = R2.RandRange(0, Meshes.Num() - 1);
+					const FBox Bx = Meshes[Mi]->GetBoundingBox();
+					const double MeshH = FMath::Max(Bx.GetSize().Z, 1.0);
+					const double S = FMath::Lerp(K.MinH, K.MaxH, R2.FRand()) * 100.0 / MeshH;
+					const double Z = GroundZ(P.X, P.Y) - 0.05 - Bx.Min.Z * S / 100.0;
+					Xf[Mi].Add(FTransform(FRotator(0, R2.FRand() * 360.0, 0), TollSpace::ToWorld(Origin, P.X, P.Y, Z), FVector(S)));
+				}
+			}
+		}
+		for (int32 m = 0; m < Meshes.Num(); ++m)
+		{
+			if (Xf[m].Num() == 0) continue;
+			UHierarchicalInstancedStaticMeshComponent* H = NewObject<UHierarchicalInstancedStaticMeshComponent>(this);
+			H->SetupAttachment(RootComponent);
+			H->SetMobility(EComponentMobility::Movable); // under the actor's movable root
+			H->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			H->SetStaticMesh(Meshes[m]);
+			H->SetCastShadow(K.bShadow);
+			H->SetCullDistances(int32(K.Cull * 80), int32(K.Cull * 100));
+			H->RegisterComponent();
+			H->AddInstances(Xf[m], false, true);
+			FoliageMeshes.Add(H);
+			Total += Xf[m].Num();
+		}
+		int32 Count = 0;
+		for (const TArray<FTransform>& X : Xf) Count += X.Num();
+		UE_LOG(LogTollScene, Log, TEXT("foliage: %d %s from %d meshes"), Count, K.Name, Meshes.Num());
+	}
+	UE_LOG(LogTollScene, Log, TEXT("foliage: %d instances"), Total);
+}
+
 void ATollTrafficActor::LoadPlazas()
 {
 	const FString Dir = FPaths::ProjectContentDir() / TEXT("Data/Plazas");
@@ -673,6 +854,7 @@ void ATollTrafficActor::BeginPlay()
 	LoadRoad();
 	LoadPlazas();
 	LoadModels();
+	LoadFoliage();
 	ApplyTimeOfDay();
 	FrameCamera();
 	if (UTollFeedSubsystem* Feed = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTollFeedSubsystem>() : nullptr)

@@ -3,7 +3,8 @@
     UnrealEditor-Cmd.exe TollSimUE.uproject -run=pythonscript -script=Scripts/import_assets.py
 
 Reads from the Fab library cache (or TOLL_ASSETS, a folder laid out the same way) and
-writes to /Game/ThirdParty, which is not committed. Re-running replaces what it wrote.
+writes to /Game/ThirdParty, which is not committed. Re-running rebuilds the materials and
+reuses textures and meshes already imported; delete /Game/ThirdParty to import afresh.
 See assets-manifest.json for what each item is and ATTRIBUTION.md for its licence.
 """
 import os
@@ -59,8 +60,17 @@ def import_files(files, dest, mesh=False):
     return out
 
 
+def existing(path, dest):
+    """The asset an earlier run imported from this file, if any."""
+    full = f"{dest}/{os.path.splitext(os.path.basename(path))[0].replace(' ', '_').replace('-', '_')}"
+    return eal.load_asset(full) if eal.does_asset_exist(full) else None
+
+
 def texture(path, dest, kind):
     """kind: color | normal | mask"""
+    tex = existing(path, dest)
+    if tex:
+        return tex
     (tex,) = [a for a in import_files([path], dest) if isinstance(a, unreal.Texture2D)][:1]
     if kind == "normal":
         tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
@@ -84,9 +94,13 @@ def fresh(name):
     return tools.create_asset(name, MAT, unreal.Material, unreal.MaterialFactoryNew())
 
 
+DEFAULTS = {}  # color | normal | mask -> a texture of that kind, for parameter defaults
+
+
 def tex_param(m, name, x, y, normal=False, mask=False):
     e = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, x, y)
     e.set_editor_property("parameter_name", name)
+    e.set_editor_property("texture", DEFAULTS["normal" if normal else "mask" if mask else "color"])
     if normal:
         e.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
     elif mask:
@@ -124,6 +138,7 @@ def make_foliage():
     m.set_editor_property("two_sided", True)
     m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
     m.set_editor_property("used_with_instanced_static_meshes", True)
+    m.set_editor_property("used_with_nanite", True)
     base = tex_param(m, "Base", -900, 0)
     nrm = tex_param(m, "Normal", -900, 300, normal=True)
     opa = tex_param(m, "Opacity", -900, 600, mask=True)
@@ -175,7 +190,10 @@ def make_surface():
     mul = node(m, unreal.MaterialExpressionMultiply, 0, 0)
     link(base, mul, "A", "RGB")
     link(blend, mul, "B")
-    mel.connect_material_property(mul, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    tinted = node(m, unreal.MaterialExpressionMultiply, 200, 0)
+    link(mul, tinted, "A")
+    link(node(m, unreal.MaterialExpressionVectorParameter, 0, -300, parameter_name="Tint", default_value=unreal.LinearColor(1, 1, 1, 1)), tinted, "B")
+    mel.connect_material_property(tinted, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(rough, "R", unreal.MaterialProperty.MP_ROUGHNESS)
     save(m)
@@ -242,19 +260,21 @@ def maps(folder):
 
 
 def main():
-    foliage, surface, ground = make_foliage(), make_surface(), make_ground()
     made = {}
-
     for cache, name in SURFACES:
         folder = find_dir(cache)
         dest = f"{DST}/Megascans/{name}"
         m = maps(folder)
-        t = {"Base": texture(m["BaseColor"], dest, "color"), "Normal": texture(m["Normal"], dest, "normal"), "Roughness": texture(m["Roughness"], dest, "mask")}
-        made[name] = t
-        instance(surface, f"MI_{name}", dest, t)
+        made[name] = {"Base": texture(m["BaseColor"], dest, "color"), "Normal": texture(m["Normal"], dest, "normal"), "Roughness": texture(m["Roughness"], dest, "mask")}
+    g = made["GravelGround"]
+    DEFAULTS.update(color=g["Base"], normal=g["Normal"], mask=g["Roughness"])
+    foliage, surface, ground = make_foliage(), make_surface(), make_ground()
+
+    for cache, name in SURFACES:
+        instance(surface, f"MI_{name}", f"{DST}/Megascans/{name}", made[name])
         unreal.log(f"toll import: surface {name}")
 
-    gm = made["DryCrackedMud"]
+    gm = made["RippledSand"]  # the cracked mud reads as dark grey under the soil tint
     gg = made["GravelGround"]
     instance(ground, "MI_Ground", f"{DST}/Megascans", {"BaseA": gm["Base"], "NormalA": gm["Normal"], "BaseB": gg["Base"], "NormalB": gg["Normal"]})
 
@@ -266,7 +286,9 @@ def main():
              "Opacity": texture(m["Opacity"], dest, "mask"), "Roughness": texture(m["Roughness"], dest, "mask")}
         mi = instance(foliage, f"MI_{name}", dest, t)
         fbx = sorted(os.path.join(folder, f) for f in os.listdir(folder) if f.endswith("_LOD1.fbx"))
-        for sm in import_files(fbx, dest, mesh=True):
+        have = [existing(f, dest) for f in fbx]
+        meshes = have if all(have) else import_files(fbx, dest, mesh=True)
+        for sm in meshes:
             if isinstance(sm, unreal.StaticMesh):
                 for i in range(sm.get_num_sections(0)):
                     sm.set_material(i, mi)
@@ -274,7 +296,18 @@ def main():
         unreal.log(f"toll import: plant {name}, {len(fbx)} variations")
 
     acacia = os.path.join(SRC, "Acacia Tree-08ad3005", "acacia-tree", "source", "1.fbx")
-    meshes = [a for a in import_files([acacia], f"{DST}/AcaciaTree", mesh=True) if isinstance(a, unreal.StaticMesh)]
+    meshes = [a for a in eal.list_assets(f"{DST}/AcaciaTree", recursive=False) if a] if eal.does_directory_exist(f"{DST}/AcaciaTree") else []
+    meshes = [m for m in (eal.load_asset(a) for a in meshes) if isinstance(m, unreal.StaticMesh)]
+    if not meshes:
+        meshes = [a for a in import_files([acacia], f"{DST}/AcaciaTree", mesh=True) if isinstance(a, unreal.StaticMesh)]
+    # the FBX brings its own materials; the instanced, Nanite trees need both usage flags
+    for path in eal.list_assets(f"{DST}/AcaciaTree", recursive=True):
+        a = eal.load_asset(path)
+        if isinstance(a, unreal.Material):
+            a.set_editor_property("used_with_instanced_static_meshes", True)
+            a.set_editor_property("used_with_nanite", True)
+            mel.recompile_material(a)
+            eal.save_asset(a.get_path_name())
     for sm in meshes:
         s = sm.get_editor_property("nanite_settings")
         s.enabled = True
