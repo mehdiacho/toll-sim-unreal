@@ -33,7 +33,7 @@ This repo is **v2**, an Unreal Engine 5 rendering of the same corridor. Mehdi's 
 | M0 | C++ project, repo, LFS, NAS backup | compiles headless | **done** (c1edec0) |
 | M1 | Feed parity: SSE plus replay; vehicles at the browser's positions | GoldenPositions test, under 0.1 m | **done** (c1edec0, e046feb) |
 | M2 | Road, markings, the three plazas from the browser's geometry, DEM terrain | stills `docs/stills/m2-*` | **done** (7877196, b859529) |
-| M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **in progress**: vehicles, lamps, wheel spin and time of day done (52b5262, a367164); the clip is not started |
+| M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **done**: vehicles, lamps, wheel spin, time of day; 30 s dusk clip `docs/clips/m3-dusk-30s.mp4` (fixed-step frames + ffmpeg, not MRQ) |
 | M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **in progress**: foliage scatter (b9976b5) and Kalahari ground (stills `m4-ground-*`) done; post, horizon band and VRAM check not started |
 | M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | not started |
 
@@ -139,7 +139,9 @@ Stills that prove a step go in `docs/stills/` (LFS).
 
 1. **Confirm the Free Shrubs Pack seller name** on its Fab page and fix ATTRIBUTION.md and the
    manifest (the pack's folder only says "GV").
-2. **30 s MRQ dusk clip (M3 proof).** A Level Sequence plus an MRQ config, created by an editor
+2. **Motorbikes** still draw as red placeholder boxes (visible at the end of the dusk clip):
+   find a bike mesh or make the box darker and smaller. Then more clips (day, night, close).
+3. ~~30 s dusk clip~~ done. Previous note kept for reference: A Level Sequence plus an MRQ config, created by an editor
    Python script and rendered with `-MoviePipelineConfig` against the replay at dusk (TollTime about 17.9; 18.8 is already dark).
    ffmpeg to H.264 and VP9. Clips are deterministic because they use the replay.
 3. **M4 finish.**
