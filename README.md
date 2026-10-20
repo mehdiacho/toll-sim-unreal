@@ -43,6 +43,9 @@ UnrealEditor.exe TollSimUE.uproject /Engine/Maps/Entry -game [-TollReplay] [-Tol
 `-TollCamEye` places the camera in metres from the plaza centre: back along the
 northbound direction, to its right, and up (default `110,22,30`).
 
+`-TollTime=<hour>` sets local solar time (default 14; dusk ~17.9, night ~20.5) and
+`-TollEV=<ev>` the night exposure (default 0.5).
+
 `-TollShot=<file.png> -TollShotDelay=<s>` saves a still and quits, which works with `-RenderOffscreen`.
 
 ## Backup

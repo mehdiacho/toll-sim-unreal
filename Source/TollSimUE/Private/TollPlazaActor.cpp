@@ -1,5 +1,6 @@
 #include "TollPlazaActor.h"
 
+#include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -212,8 +213,39 @@ void ATollPlazaActor::Build(const TSharedPtr<FJsonObject>& Plaza, const FString&
 		}
 		Booms.Add(Boom);
 	}
+	// downlights under the canopy over every lane, and floodlights over each approach
+	const double Half = Plaza->GetNumberField(TEXT("halfWidth"));
+	const auto Spot = [&](double U, double V, double Z, double Cone, double Pitch)
+	{
+		USpotLightComponent* L = NewObject<USpotLightComponent>(this);
+		L->SetupAttachment(Static);
+		L->SetRelativeLocation(Local(U, Z, -V));
+		L->SetRelativeRotation(FRotator(Pitch, 0, 0));
+		L->SetOuterConeAngle(static_cast<float>(Cone));
+		L->SetInnerConeAngle(static_cast<float>(Cone * 0.6));
+		L->SetAttenuationRadius(static_cast<float>(Z * 100 * 4));
+		L->SetLightColor(FLinearColor(1.0f, 0.86f, 0.68f));
+		L->SetCastShadows(false);
+		L->SetIntensity(0.f);
+		L->SetVisibility(false);
+		L->RegisterComponent();
+		Downlights.Add(L);
+	};
+	for (double V = -Half + 4; V <= Half - 4; V += 8) Spot(0, V, 6.5, 55, -90);
+	for (const double U : {-90.0, 90.0})
+		for (const double V : {-Half * 0.5, Half * 0.5}) Spot(U, V, 22, 60, -90);
+
 	Advance(0, 0);
 	UE_LOG(LogTollPlaza, Log, TEXT("plaza %s: %d sections, %d booms"), *PlazaId, Section, Booms.Num());
+}
+
+void ATollPlazaActor::SetNight(float Night)
+{
+	for (USpotLightComponent* L : Downlights)
+	{
+		L->SetVisibility(Night > 0.05f);
+		L->SetIntensity(Night * (L->GetRelativeLocation().Z > 1000 ? 60000.f : 12000.f));
+	}
 }
 
 void ATollPlazaActor::NoteVehicle(const TollPlaza::FLayout& Layout, const TollPlaza::FContext& Ctx, double Len, double Speed)

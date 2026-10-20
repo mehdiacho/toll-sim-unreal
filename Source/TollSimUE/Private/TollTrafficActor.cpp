@@ -4,6 +4,7 @@
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/PostProcessComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Engine/GameInstance.h"
@@ -157,6 +158,28 @@ ATollTrafficActor::ATollTrafficActor()
 	Sun->SetIntensity(10.f);
 	Sun->SetRelativeRotation(FRotator(-38.f, 125.f, 0.f));
 
+	Moon = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("Moon"));
+	Moon->SetupAttachment(SceneRoot);
+	Moon->SetMobility(EComponentMobility::Movable);
+	Moon->SetIntensity(0.f);
+	Moon->SetLightColor(FLinearColor(0.6f, 0.7f, 1.0f));
+	Moon->SetRelativeRotation(FRotator(-55.f, 60.f, 0.f));
+	Moon->SetAtmosphereSunLight(false);
+
+	const auto Lamps = [&](const TCHAR* Name)
+	{
+		UInstancedStaticMeshComponent* L = CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
+		L->SetupAttachment(SceneRoot);
+		L->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		L->SetMobility(EComponentMobility::Movable);
+		L->SetCastShadow(false);
+		if (Cube.Succeeded()) L->SetStaticMesh(Cube.Object);
+		return L;
+	};
+	HeadLamps = Lamps(TEXT("HeadLamps"));
+	TailLamps = Lamps(TEXT("TailLamps"));
+	BrakeLamps = Lamps(TEXT("BrakeLamps"));
+
 	Sky = CreateDefaultSubobject<USkyAtmosphereComponent>(TEXT("Sky"));
 	Sky->SetupAttachment(SceneRoot);
 
@@ -168,6 +191,10 @@ ATollTrafficActor::ATollTrafficActor()
 	Fog = CreateDefaultSubobject<UExponentialHeightFogComponent>(TEXT("Fog"));
 	Fog->SetupAttachment(SceneRoot);
 	Fog->SetFogDensity(0.004f);
+
+	Post = CreateDefaultSubobject<UPostProcessComponent>(TEXT("Post"));
+	Post->SetupAttachment(SceneRoot);
+	Post->bUnbound = true;
 }
 
 bool ATollTrafficActor::LoadRoad()
@@ -265,6 +292,71 @@ bool ATollTrafficActor::LoadRoad()
 	return true;
 }
 
+void ATollTrafficActor::ApplyTimeOfDay()
+{
+	FParse::Value(FCommandLine::Get(), TEXT("TollTime="), Hour);
+	Hour = FMath::Fmod(FMath::Fmod(Hour, 24.0) + 24.0, 24.0);
+	// Gaborone, 24.6 S: the sun crosses the northern sky. Rise ~6, set ~18.
+	const double Day = (Hour - 6.0) / 12.0;
+	const double Elev = 78.0 * FMath::Sin(UE_DOUBLE_PI * Day); // negative at night
+	const double Yaw = 180.0 - 180.0 * Day;                    // light from the east at dawn, the north at noon
+	Sun->SetRelativeRotation(FRotator(-Elev, Yaw, 0));
+	const double Up = FMath::Clamp(Elev / 12.0, 0.0, 1.0);
+	Sun->SetIntensity(10.f * static_cast<float>(FMath::Max(Up, 0.02)));
+	Sun->SetLightColor(FLinearColor::LerpUsingHSV(FLinearColor(1.0f, 0.55f, 0.3f), FLinearColor(1.0f, 0.97f, 0.92f), static_cast<float>(Up)));
+	Night = FMath::Clamp((4.0 - Elev) / 10.0, 0.0, 1.0); // dusk starts with the sun 4 deg up
+	Moon->SetIntensity(0.25f * static_cast<float>(Night));
+
+	// auto exposure would turn night into a grey day: cap how far it may open up.
+	// -TollEV=<ev100> overrides the night cap for tuning.
+	FPostProcessSettings& PP = Post->Settings;
+	double NightEV = 0.5;
+	FParse::Value(FCommandLine::Get(), TEXT("TollEV="), NightEV);
+	if (Night > 0.5)
+	{
+		PP.bOverride_AutoExposureMethod = true;
+		PP.AutoExposureMethod = AEM_Manual;
+		PP.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+		PP.AutoExposureApplyPhysicalCameraExposure = false;
+		PP.bOverride_AutoExposureBias = true;
+		PP.AutoExposureBias = static_cast<float>(NightEV);
+	}
+	PP.bOverride_BloomIntensity = true;
+	PP.BloomIntensity = static_cast<float>(FMath::Lerp(0.675, 1.2, Night));
+	for (ATollPlazaActor* P : Plazas) P->SetNight(static_cast<float>(Night));
+
+	const float Head = Night > 0.05 ? 25.f : 0.f;
+	const float Tail = Night > 0.05 ? 12.f : 0.6f;
+	if (UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Toll/Materials/M_Color.M_Color")))
+	{
+		const auto Lamp = [&](UInstancedStaticMeshComponent* L, FLinearColor C, float E)
+		{
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, this);
+			M->SetVectorParameterValue(TEXT("Color"), C);
+			M->SetScalarParameterValue(TEXT("Emissive"), E);
+			L->SetMaterial(0, M);
+		};
+		Lamp(HeadLamps, FLinearColor(1.0f, 0.92f, 0.75f), Head);
+		Lamp(TailLamps, FLinearColor(0.8f, 0.03f, 0.02f), Tail);
+		Lamp(BrakeLamps, FLinearColor(1.0f, 0.04f, 0.02f), 40.f);
+	}
+	UE_LOG(LogTollScene, Log, TEXT("time %.2f h: sun %.1f deg up, night %.2f"), Hour, Elev, Night);
+}
+
+void ATollTrafficActor::SetInstances(UInstancedStaticMeshComponent* Ism, const TArray<FTransform>& Xf)
+{
+	const int32 Have = Ism->GetInstanceCount();
+	if (Have > Xf.Num())
+	{
+		Ism->ClearInstances();
+		Ism->AddInstances(Xf, false, true);
+		return;
+	}
+	if (Have > 0) Ism->BatchUpdateInstancesTransforms(0, MakeArrayView(Xf.GetData(), Have), true, false, false);
+	if (Xf.Num() > Have) Ism->AddInstances(TArray<FTransform>(Xf.GetData() + Have, Xf.Num() - Have), false, true);
+	Ism->MarkRenderStateDirty();
+}
+
 void ATollTrafficActor::LoadPlazas()
 {
 	const FString Dir = FPaths::ProjectContentDir() / TEXT("Data/Plazas");
@@ -324,6 +416,7 @@ void ATollTrafficActor::BeginPlay()
 	Super::BeginPlay();
 	LoadRoad();
 	LoadPlazas();
+	ApplyTimeOfDay();
 	FrameCamera();
 	if (UTollFeedSubsystem* Feed = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTollFeedSubsystem>() : nullptr)
 	{
@@ -356,33 +449,66 @@ void ATollTrafficActor::Tick(float DeltaSeconds)
 	{
 		P->Advance(FMath::Min(DeltaSeconds, 0.1f), Feed->GetRenderTime());
 	}
+	// body motion: brake pitch from the speed trace, a little suspension bob
+	const double Dt = FMath::Clamp(static_cast<double>(DeltaSeconds), 1e-3, 0.1);
+	for (auto& M : Motion) M.Value.bSeen = false;
+	TArray<FRotator> Body;
+	TArray<double> Bob;
+	Body.SetNum(Vis.Num());
+	Bob.SetNum(Vis.Num());
+	for (int32 i = 0; i < Vis.Num(); ++i)
+	{
+		const TollTraffic::FVisible& V = Vis[i];
+		FMotion& M = Motion.FindOrAdd(V.Id);
+		M.bSeen = true;
+		const double A = M.PrevSpeed < 0 ? 0 : (V.Speed - M.PrevSpeed) / Dt;
+		M.PrevSpeed = V.Speed;
+		M.Accel += (FMath::Clamp(A, -8.0, 4.0) - M.Accel) * FMath::Min(1.0, Dt * 4);
+		M.Phase += Dt * (7.0 + (V.Id % 7) * 0.6) * FMath::Min(V.Speed / 8.0, 1.0);
+		const bool bHeavy = V.Cls == TEXT("3") || V.Cls == TEXT("4");
+		// braking dips the nose (negative pitch), pulling away lifts it; heavies move less
+		const double Pitch = FMath::Clamp(M.Accel * (bHeavy ? 0.25 : 0.5), -2.5, 1.5);
+		Body[i] = FRotator(Pitch, TollSpace::ToYaw(V.Heading), FMath::Sin(M.Phase * 0.5) * 0.3 * FMath::Min(V.Speed / 15.0, 1.0));
+		Bob[i] = FMath::Sin(M.Phase) * 0.02 * FMath::Min(V.Speed / 10.0, 1.0);
+	}
+	for (auto It = Motion.CreateIterator(); It; ++It)
+	{
+		if (!It.Value().bSeen) It.RemoveCurrent();
+	}
+
+	HeadXf.Reset();
+	TailXf.Reset();
+	BrakeXf.Reset();
 	for (int32 c = 0; c < ClassMeshes.Num(); ++c)
 	{
 		Scratch.Reset();
 		const double Len = TollTraffic::ClassLen(Looks[c].Cls);
-		const FVector Scale(Len, Looks[c].Width, Looks[c].Height); // the engine cube is 1 m
+		const double W = Looks[c].Width;
+		const double H = Looks[c].Height;
+		const FVector Scale(Len, W, H); // the engine cube is 1 m
 		for (int32 i = 0; i < Vis.Num(); ++i)
 		{
 			const TollTraffic::FVisible& V = Vis[i];
 			if (LookIndex(V.Cls) != c) continue;
-			const FVector Pos = TollSpace::ToWorld(Origin, DrawnPos[i].X, DrawnPos[i].Y, Looks[c].Height / 2);
-			Scratch.Add(FTransform(FRotator(0, TollSpace::ToYaw(V.Heading), 0), Pos, Scale));
-		}
-		UInstancedStaticMeshComponent* Ism = ClassMeshes[c];
-		const int32 Have = Ism->GetInstanceCount();
-		if (Have > Scratch.Num())
-		{
-			Ism->ClearInstances();
-			Ism->AddInstances(Scratch, false, true);
-		}
-		else
-		{
-			if (Have > 0) Ism->BatchUpdateInstancesTransforms(0, MakeArrayView(Scratch.GetData(), Have), true, false, false);
-			if (Scratch.Num() > Have)
+			const FVector Pos = TollSpace::ToWorld(Origin, DrawnPos[i].X, DrawnPos[i].Y, H / 2 + Bob[i]);
+			const FTransform Xf(Body[i], Pos);
+			Scratch.Add(FTransform(Body[i], Pos, Scale));
+
+			// lamps on the body's front and rear faces, placed in body space
+			const double LampZ = FMath::Min(0.75, H * 0.45) - H / 2;
+			const double Side = c == 0 ? 0.0 : W / 2 - 0.25;
+			const bool bBrake = Motion.FindRef(V.Id).Accel < -0.8;
+			const FVector LampScale(0.04, c == 0 ? 0.14 : 0.26, 0.12);
+			for (const double S : {-Side, Side})
 			{
-				Ism->AddInstances(TArray<FTransform>(Scratch.GetData() + Have, Scratch.Num() - Have), false, true);
+				if (c == 0 && S > 0) continue; // a motorbike has one of each
+				HeadXf.Add(FTransform(Body[i], Xf.TransformPosition(FVector(Len / 2 + 0.02, S, LampZ) * 100.0), LampScale));
+				(bBrake ? BrakeXf : TailXf).Add(FTransform(Body[i], Xf.TransformPosition(FVector(-Len / 2 - 0.02, S, LampZ) * 100.0), LampScale));
 			}
-			Ism->MarkRenderStateDirty();
 		}
+		SetInstances(ClassMeshes[c], Scratch);
 	}
+	SetInstances(HeadLamps, HeadXf);
+	SetInstances(TailLamps, TailXf);
+	SetInstances(BrakeLamps, BrakeXf);
 }

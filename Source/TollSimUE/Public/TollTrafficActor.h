@@ -16,6 +16,7 @@ class UDirectionalLightComponent;
 class USkyAtmosphereComponent;
 class USkyLightComponent;
 class UExponentialHeightFogComponent;
+class UPostProcessComponent;
 class UTollFeedSubsystem;
 class ATollPlazaActor;
 
@@ -65,6 +66,25 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Toll")
 	TObjectPtr<UExponentialHeightFogComponent> Fog;
 
+	/** Exposure limits, so night stays night. */
+	UPROPERTY(VisibleAnywhere, Category = "Toll")
+	TObjectPtr<UPostProcessComponent> Post;
+
+	/** Moonlight, on when the sun is down. */
+	UPROPERTY(VisibleAnywhere, Category = "Toll")
+	TObjectPtr<UDirectionalLightComponent> Moon;
+
+	/** Head, tail and brake lamps, one instance per lamp. */
+	UPROPERTY(VisibleAnywhere, Category = "Toll")
+	TObjectPtr<UInstancedStaticMeshComponent> HeadLamps;
+	UPROPERTY(VisibleAnywhere, Category = "Toll")
+	TObjectPtr<UInstancedStaticMeshComponent> TailLamps;
+	UPROPERTY(VisibleAnywhere, Category = "Toll")
+	TObjectPtr<UInstancedStaticMeshComponent> BrakeLamps;
+
+	/** Local solar time, hours. -TollTime=<h>. */
+	double Hour = 14.0;
+
 	/** Number of vehicles drawn last tick. */
 	int32 DrawnCount() const { return Drawn; }
 
@@ -81,7 +101,22 @@ private:
 	FVector2D Origin = FVector2D::ZeroVector;
 	TMap<FString, FVector2D> PlazaPos;
 	TMap<FString, double> PlazaHeading;
+	void ApplyTimeOfDay();
+	static void SetInstances(UInstancedStaticMeshComponent* Ism, const TArray<FTransform>& Xf);
+
+	/** Kinematic body motion per vehicle: no physics, just what the speed trace implies. */
+	struct FMotion
+	{
+		double PrevSpeed = -1;
+		double Accel = 0; // m/s^2, smoothed
+		double Phase = 0; // suspension bob
+		bool bSeen = false;
+	};
+	TMap<int32, FMotion> Motion;
+	double Night = 0; // 0 day .. 1 full night
+
 	TArray<FTransform> Scratch;
+	TArray<FTransform> HeadXf, TailXf, BrakeXf;
 	TArray<FVector2D> DrawnPos;
 	int32 Drawn = 0;
 };

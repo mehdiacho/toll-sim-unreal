@@ -50,6 +50,9 @@ public:
 	/** A boom event from the feed, [plazaId, dir, idx, up], due at render time At. */
 	void NoteFeedBoom(const FString& Key, bool bUp, double At);
 
+	/** Canopy and mast lighting, 0 by day to 1 at night. */
+	void SetNight(float Night);
+
 	/** Swing the booms toward their targets and light the booth lamps. */
 	void Advance(double Dt, double RenderT);
 
@@ -60,6 +63,9 @@ public:
 	TArray<FTollBoom> Booms;
 
 	FString PlazaId;
+
+	UPROPERTY()
+	TArray<TObjectPtr<class USpotLightComponent>> Downlights;
 
 private:
 	UMaterialInstanceDynamic* MaterialFor(const FString& MeshRole, const FString& Texture, const FString& TextureDir);
