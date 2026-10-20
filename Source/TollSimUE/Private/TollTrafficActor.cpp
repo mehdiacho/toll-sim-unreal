@@ -427,8 +427,21 @@ void ATollTrafficActor::BeginPlay()
 void ATollTrafficActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	const UTollFeedSubsystem* Feed = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTollFeedSubsystem>() : nullptr;
+	UTollFeedSubsystem* Feed = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTollFeedSubsystem>() : nullptr;
 	if (!Feed) return;
+
+	TArray<UTollFeedSubsystem::FBoomEvent> Due;
+	Feed->TakeDueBooms(Due);
+	for (const UTollFeedSubsystem::FBoomEvent& E : Due)
+	{
+		for (ATollPlazaActor* P : Plazas)
+		{
+			if (P->PlazaId == E.Plaza) P->NoteFeedBoom(E.Key, E.bUp, Feed->GetRenderTime());
+		}
+		UE_LOG(LogTollScene, Verbose, TEXT("feed boom %s %s %s"), *E.Plaza, *E.Key, E.bUp ? TEXT("up") : TEXT("down"));
+		{
+		}
+	}
 
 	const TArray<TollTraffic::FVisible>& Vis = Feed->GetVisible();
 	Drawn = Vis.Num();

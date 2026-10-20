@@ -56,6 +56,18 @@ public:
 	/** Newest frame's extra fields (booms, lanes_open, stats, events). */
 	TSharedPtr<FJsonObject> GetLatestExtra() const { return LatestExtra; }
 
+	/** A boom raised or lowered by the sim, [plaza, dir, idx, up] on the wire. */
+	struct FBoomEvent
+	{
+		double At = 0; // render time it takes effect (viewer.js: frame t - 0.6)
+		FString Plaza;
+		FString Key; // dir + idx, e.g. S0
+		bool bUp = false;
+	};
+
+	/** Boom events due by RenderT, oldest first; removes them. */
+	void TakeDueBooms(TArray<FBoomEvent>& Out);
+
 	/** Load and decode Content/Data/replay.json. Exposed for tests. */
 	static bool LoadReplay(double& OutDt, TArray<TollTraffic::FFrame>& OutFrames);
 
@@ -81,6 +93,7 @@ private:
 	double RenderT = 0;
 	TArray<TollTraffic::FVisible> Visible;
 	TSharedPtr<FJsonObject> LatestExtra;
+	TArray<FBoomEvent> PendingBooms;
 
 	// replay
 	double ReplayDt = 0.5;

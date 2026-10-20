@@ -156,6 +156,32 @@ void UTollFeedSubsystem::Ingest(const TollTraffic::FFrame& Frame, bool bFirst)
 	NewestT = Frame.T;
 	if (bFirst) RenderT = Frame.T - TollTraffic::Lag;
 	LatestExtra = Frame.Extra;
+
+	if (bFirst) PendingBooms.Reset();
+	const TArray<TSharedPtr<FJsonValue>>* Booms;
+	if (Frame.Extra.IsValid() && Frame.Extra->TryGetArrayField(TEXT("booms"), Booms))
+	{
+		const double At = bFirst ? Frame.T - TollTraffic::Lag : Frame.T - 0.6;
+		for (const TSharedPtr<FJsonValue>& BV : *Booms)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* B;
+			if (!BV->TryGetArray(B) || B->Num() < 4) continue;
+			FBoomEvent E;
+			E.At = At;
+			E.Plaza = (*B)[0]->AsString();
+			E.Key = (*B)[1]->AsString() + FString::FromInt(static_cast<int32>((*B)[2]->AsNumber()));
+			E.bUp = (*B)[3]->Type == EJson::Boolean ? (*B)[3]->AsBool() : (*B)[3]->AsNumber() != 0;
+			PendingBooms.Add(MoveTemp(E));
+		}
+	}
+}
+
+void UTollFeedSubsystem::TakeDueBooms(TArray<FBoomEvent>& Out)
+{
+	Out.Reset();
+	int32 N = 0;
+	while (N < PendingBooms.Num() && PendingBooms[N].At <= RenderT) Out.Add(PendingBooms[N++]);
+	PendingBooms.RemoveAt(0, N);
 }
 
 void UTollFeedSubsystem::PumpStream()
