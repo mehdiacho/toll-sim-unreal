@@ -128,6 +128,13 @@ void ATollPlazaActor::Build(const TSharedPtr<FJsonObject>& Plaza, const FString&
 		TArray<FVector2D> UV;
 		TArray<FLinearColor> C;
 		AppendGeometry(Mesh->GetObjectField(TEXT("geometry")), V, T, N, UV, C);
+		if (MeshRole == TEXT("apron") || MeshRole == TEXT("marks"))
+		{
+			// the browser draws these double-sided, and some of their quads face down once y is
+			// flipped, so the flared apron vanished and heavy lanes ran over bare ground
+			const int32 Num = T.Num();
+			for (int32 i = 0; i + 2 < Num; i += 3) T.Append({T[i], T[i + 2], T[i + 1]});
+		}
 		Static->CreateMeshSection_LinearColor(Section, V, T, N, UV, C, {}, false);
 		Static->SetMaterial(Section, MaterialFor(MeshRole, Texture, TextureDir));
 		++Section;

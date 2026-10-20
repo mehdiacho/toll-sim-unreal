@@ -901,6 +901,13 @@ void ATollTrafficActor::Tick(float DeltaSeconds)
 		const TollTraffic::FVisible& V = Vis[i];
 		TollPlaza::FContext Ctx;
 		DrawnPos[i] = TollPlaza::Drawn(Layouts, V.X, V.Y, V.Heading, &Ctx);
+		static const bool bLogOffRoad = FParse::Param(FCommandLine::Get(), TEXT("TollLogOffRoad")); // diagnostics
+		if (bLogOffRoad && GFrameCounter % 30 == 0)
+		{
+			const double Raw = RoadDist(FVector2D(V.X, V.Y), 40), Drw = RoadDist(DrawnPos[i], 40);
+			if (Drw > 4) UE_LOG(LogTollScene, Log, TEXT("offroad: id %d cls %s raw (%.1f, %.1f) %.1f m, drawn (%.1f, %.1f) %.1f m, plaza %d"),
+				V.Id, *V.Cls, V.X, V.Y, Raw, DrawnPos[i].X, DrawnPos[i].Y, Drw, Ctx.Plaza);
+		}
 		if (Ctx.Plaza != INDEX_NONE && Plazas.IsValidIndex(Ctx.Plaza))
 		{
 			Plazas[Ctx.Plaza]->NoteVehicle(Layouts[Ctx.Plaza], Ctx, TollTraffic::ClassLen(V.Cls), V.Speed);

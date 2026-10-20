@@ -184,6 +184,13 @@ After that comes M5:
 - **Foliage.** Some Megascans grass variations are flat litter (height under 0.4 × footprint)
   and are skipped. Scaling them to a plant's height turns them into ribbons. The Namaqualand
   `rocks_01` and `stones_01` sets are flat ground patches; only `boulder_0*` is used.
+- **Plaza apron and marks are drawn double-sided.** Some of their quads face down after the
+  y flip, so the flared apron used to vanish and heavy lanes appeared to run over sand.
+  `-TollLogOffRoad` logs any vehicle drawn more than 4 m from a road lane, for checking this
+  kind of thing (inside a plaza flare that's expected).
+- **Clips:** `-TollClip=<dir> [-TollClipSeconds=30 -TollClipFPS=30 -TollClipWarmup=20]` writes
+  a fixed-step PNG sequence and quits; then use ffmpeg. It's used instead of MRQ, because the
+  scene is built at runtime in `-game`.
 - **HISMs under the actor are Movable,** because a Static component can't attach to the
   movable root.
 - **City Sample per-instance data.**
