@@ -95,6 +95,7 @@ public:
 private:
 	bool LoadRoad();
 	bool LoadTerrain();
+	void LoadModels();
 	void LoadPlazas();
 	void FrameCamera();
 
@@ -107,7 +108,7 @@ private:
 	TMap<FString, FVector2D> PlazaPos;
 	TMap<FString, double> PlazaHeading;
 	void ApplyTimeOfDay();
-	static void SetInstances(UInstancedStaticMeshComponent* Ism, const TArray<FTransform>& Xf);
+	static void SetInstances(UInstancedStaticMeshComponent* Ism, const TArray<FTransform>& Xf, const TArray<float>* Custom = nullptr);
 
 	/** Kinematic body motion per vehicle: no physics, just what the speed trace implies. */
 	struct FMotion
@@ -115,10 +116,34 @@ private:
 		double PrevSpeed = -1;
 		double Accel = 0; // m/s^2, smoothed
 		double Phase = 0; // suspension bob
+		double Dist = 0;  // metres rolled, for wheel spin
 		bool bSeen = false;
 	};
 	TMap<int32, FMotion> Motion;
 	double Night = 0; // 0 day .. 1 full night
+
+	/** A detailed vehicle (City Sample Vehicles): rigid parts and wheels, each an instanced mesh. */
+	struct FVehicleModel
+	{
+		struct FWheel
+		{
+			UInstancedStaticMeshComponent* Ism = nullptr;
+			FVector Centre = FVector::ZeroVector; // model space, cm
+			double Radius = 35;
+		};
+		FString Name;
+		TArray<UInstancedStaticMeshComponent*> Rigid;
+		TArray<FWheel> Wheels;
+		double OffsetX = 0; // cm; centres the body on the sim position
+		FBox Body;          // body bounds after the offset, cm
+		TArray<TArray<FTransform>> RigidXf, WheelXf;
+		TArray<float> Packed; // per instance: paint variation and lamp bits, read by the pack's materials
+	};
+	TArray<FVehicleModel> Models;
+	TMap<FString, TArray<int32>> ClassModels; // toll class -> models it is drawn with
+
+	UPROPERTY()
+	TArray<TObjectPtr<UInstancedStaticMeshComponent>> ModelMeshes; // keeps the model components alive
 
 	TArray<FTransform> Scratch;
 	TArray<FTransform> HeadXf, TailXf, BrakeXf;

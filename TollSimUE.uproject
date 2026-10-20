@@ -13,6 +13,7 @@
 	],
 	"Plugins": [
 		{ "Name": "ProceduralMeshComponent", "Enabled": true },
+		{ "Name": "ChaosVehiclesPlugin", "Enabled": true },
 		{ "Name": "MovieRenderPipeline", "Enabled": true },
 		{ "Name": "PCG", "Enabled": true },
 		{ "Name": "SunPosition", "Enabled": true },

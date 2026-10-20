@@ -1,20 +1,62 @@
 {
-  "note": "Third-party content used by the project. Files live under Content/ThirdParty/ and are never committed; ATTRIBUTION.md carries the credits. Fetch or add each entry, then run Scripts/backup-nas.sh.",
-  "assets": [
-    {
-      "name": "Copernicus DEM GLO-30 (4 tiles)",
-      "kind": "elevation data",
-      "source": "https://copernicus-dem-30m.s3.amazonaws.com/",
-      "files": [
-        "Copernicus_DSM_COG_10_S25_00_E025_00_DEM.tif",
-        "Copernicus_DSM_COG_10_S25_00_E026_00_DEM.tif",
-        "Copernicus_DSM_COG_10_S24_00_E026_00_DEM.tif",
-        "Copernicus_DSM_COG_10_S23_00_E026_00_DEM.tif"
-      ],
-      "local": "Incoming/dem/ (not committed, 142 MB)",
-      "derived": "Content/Data/terrain.bin via Scripts/make_terrain.py",
-      "licence": "Copernicus DEM licence (free use with attribution)",
-      "attribution": "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA"
-    }
-  ]
+ "note": "Third-party content used by the project. None of it is committed (Content/ThirdParty/, Content/CitySampleVehicles/ and Content/Namaqualand/ are git-ignored); ATTRIBUTION.md carries the credits. Add each entry from the Fab library, run Scripts/import_assets.py for the non-Unreal ones, then Scripts/backup-nas.sh.",
+ "assets": [
+  {
+   "name": "Copernicus DEM GLO-30 (4 tiles)",
+   "kind": "elevation data",
+   "source": "https://copernicus-dem-30m.s3.amazonaws.com/",
+   "files": [
+    "Copernicus_DSM_COG_10_S25_00_E025_00_DEM.tif",
+    "Copernicus_DSM_COG_10_S25_00_E026_00_DEM.tif",
+    "Copernicus_DSM_COG_10_S24_00_E026_00_DEM.tif",
+    "Copernicus_DSM_COG_10_S23_00_E026_00_DEM.tif"
+   ],
+   "local": "Incoming/dem/ (not committed, 142 MB)",
+   "derived": "Content/Data/terrain.bin via Scripts/make_terrain.py",
+   "licence": "Copernicus DEM licence (free use with attribution)",
+   "attribution": "© DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA"
+  },
+  {
+   "name": "City Sample Vehicles",
+   "kind": "vehicle meshes (Unreal content)",
+   "source": "Fab (free), Epic Games",
+   "local": "%LOCALAPPDATA%/com.epicgames.eglv2/FabLibrary/City Sample Vehicles-2909157b/ copied to Content/CitySampleVehicles/ (7.5 GB)",
+   "used": "vehicle01_Van, 02/03/05/06/07/12_Car, 09_Van, 04_Truck, 10_Bus, 11_Truck, 08_Truck + 08_Trailer; not 13 (police)",
+   "licence": "Fab Standard Licence; Unreal Engine only",
+   "attribution": "City Sample Vehicles by Epic Games"
+  },
+  {
+   "name": "Namaqualand Environment and Asset Pack",
+   "kind": "foliage and rock meshes (Unreal content)",
+   "source": "Fab (free), Poly Haven",
+   "local": "%LOCALAPPDATA%/com.epicgames.eglv2/FabLibrary/Namaqualand Environment and Asset Pack-295ed897/ copied to Content/Namaqualand/ (4.7 GB)",
+   "used": "searsia_lucida, searsia_burchellii, wild_rooibos_bush, boulders, rocks, stones",
+   "licence": "CC BY 4.0 (as listed on Fab)",
+   "attribution": "Namaqualand Environment by Poly Haven"
+  },
+  {
+   "name": "Acacia Tree",
+   "kind": "tree mesh (FBX)",
+   "source": "Fab (free), Incg5764",
+   "local": "%LOCALAPPDATA%/com.epicgames.eglv2/FabLibrary/Acacia Tree-08ad3005/acacia-tree/source/1.fbx, imported to Content/ThirdParty/AcaciaTree/",
+   "licence": "CC BY 4.0",
+   "attribution": "Acacia Tree by Incg5764, CC BY 4.0"
+  },
+  {
+   "name": "Quixel Megascans: Dry Grass, Thatching Grass, Dead Shrubs",
+   "kind": "3D plants (FBX + textures)",
+   "source": "Fab (free Megascans), Quixel",
+   "local": "%LOCALAPPDATA%/com.epicgames.eglv2/FabLibrary/{Dry Grass-472c99c7, Thatching Grass-0311f445, Dead Shrubs-d8fbec55}/, imported to Content/ThirdParty/Megascans/ (LOD1, 2K textures)",
+   "licence": "Fab Standard Licence",
+   "attribution": "Quixel Megascans"
+  },
+  {
+   "name": "Quixel Megascans: Dry Cracked Mud, Gravel Ground, Rippled Sand, Road Asphalt",
+   "kind": "surfaces (textures)",
+   "source": "Fab (free Megascans), Quixel",
+   "local": "%LOCALAPPDATA%/com.epicgames.eglv2/FabLibrary/{Dry Cracked Mud-bdf4f488, Gravel Ground-5f67fdd6, Rippled Sand-642bd724, Road Asphalt-37df99dd}/, imported to Content/ThirdParty/Megascans/",
+   "licence": "Fab Standard Licence",
+   "attribution": "Quixel Megascans"
+  }
+ ]
 }

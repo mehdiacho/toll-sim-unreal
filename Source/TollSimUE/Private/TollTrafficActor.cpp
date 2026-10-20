@@ -6,6 +6,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PostProcessComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Components/SkyLightComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
@@ -499,18 +500,117 @@ void ATollTrafficActor::ApplyTimeOfDay()
 	UE_LOG(LogTollScene, Log, TEXT("time %.2f h: sun %.1f deg up, night %.2f"), Hour, Elev, Night);
 }
 
-void ATollTrafficActor::SetInstances(UInstancedStaticMeshComponent* Ism, const TArray<FTransform>& Xf)
+void ATollTrafficActor::SetInstances(UInstancedStaticMeshComponent* Ism, const TArray<FTransform>& Xf, const TArray<float>* Custom)
 {
 	const int32 Have = Ism->GetInstanceCount();
 	if (Have > Xf.Num())
 	{
 		Ism->ClearInstances();
 		Ism->AddInstances(Xf, false, true);
-		return;
 	}
-	if (Have > 0) Ism->BatchUpdateInstancesTransforms(0, MakeArrayView(Xf.GetData(), Have), true, false, false);
-	if (Xf.Num() > Have) Ism->AddInstances(TArray<FTransform>(Xf.GetData() + Have, Xf.Num() - Have), false, true);
+	else
+	{
+		if (Have > 0) Ism->BatchUpdateInstancesTransforms(0, MakeArrayView(Xf.GetData(), Have), true, false, false);
+		if (Xf.Num() > Have) Ism->AddInstances(TArray<FTransform>(Xf.GetData() + Have, Xf.Num() - Have), false, true);
+	}
+	if (Custom && Ism->NumCustomDataFloats == 1)
+	{
+		for (int32 k = 0; k < Xf.Num() && k < Custom->Num(); ++k) Ism->SetCustomDataValue(k, 0, (*Custom)[k], false);
+	}
 	Ism->MarkRenderStateDirty();
+}
+
+namespace
+{
+// City Sample's MF_UnpackTrafficVehicleInstanceCustomData reads PerInstanceCustomData[0] as a uint:
+// the low 16 bits a half-float 0..1 that picks the paint, bits 16+ the lamps.
+enum ELampBits : uint32
+{
+	RunFront = (1u << 16) | (1u << 17),
+	RunRear = (1u << 18) | (1u << 19),
+	Brake = (1u << 20) | (1u << 21),
+	Head = (1u << 24) | (1u << 25),
+};
+float PackVehicle(float Random, uint32 Lamps)
+{
+	const uint32 Bits = uint32(FFloat16(FMath::Clamp(Random, 0.f, 1.f)).Encoded) | Lamps;
+	float Out;
+	FMemory::Memcpy(&Out, &Bits, sizeof(Out));
+	return Out;
+}
+}
+
+void ATollTrafficActor::LoadModels()
+{
+	// City Sample Vehicles (Fab, free; Content/CitySampleVehicles, not committed). Each model is
+	// a body without wheels, glass, brake pads and four or more wheels, all placed in vehicle
+	// space with the origin on the ground, +X forward. Without the pack, the boxes stay.
+	struct FDef
+	{
+		const TCHAR* Cls;
+		TArray<const TCHAR*> Folders;
+	};
+	const FDef Defs[] = {
+		{TEXT("1"), {TEXT("vehicle02_Car")}}, {TEXT("1"), {TEXT("vehicle03_Car")}}, {TEXT("1"), {TEXT("vehicle05_Car")}},
+		{TEXT("1"), {TEXT("vehicle06_Car")}}, {TEXT("1"), {TEXT("vehicle07_Car")}}, {TEXT("1"), {TEXT("vehicle12_Car")}},
+		{TEXT("1"), {TEXT("vehicle01_Van")}},
+		{TEXT("2"), {TEXT("vehicle09_Van")}}, {TEXT("2"), {TEXT("vehicle04_Truck")}},
+		{TEXT("3"), {TEXT("vehicle10_Bus")}}, {TEXT("3"), {TEXT("vehicle11_Truck")}},
+		{TEXT("4"), {TEXT("vehicle08_Truck"), TEXT("vehicle08_Trailer")}},
+	};
+	IAssetRegistry& Registry = IAssetRegistry::GetChecked();
+	for (const FDef& D : Defs)
+	{
+		FVehicleModel M;
+		M.Name = D.Folders[0];
+		TArray<TPair<UStaticMesh*, bool>> Parts; // mesh, is a wheel
+		for (const TCHAR* F : D.Folders)
+		{
+			const FString Path = FString::Printf(TEXT("/Game/CitySampleVehicles/%s/Mesh"), F);
+			Registry.ScanPathsSynchronous({Path});
+			TArray<FAssetData> Assets;
+			Registry.GetAssetsByPath(FName(*Path), Assets, true);
+			for (const FAssetData& A : Assets)
+			{
+				const FString N = A.AssetName.ToString();
+				if (N.Contains(TEXT("_LOD")) || N.Contains(TEXT("lightBar"))) continue;
+				if (UStaticMesh* Sm = Cast<UStaticMesh>(A.GetAsset())) Parts.Add({Sm, N.Contains(TEXT("Wheel")) && !N.Contains(TEXT("No_Wheel"))});
+			}
+		}
+		if (Parts.Num() == 0) continue;
+		FBox Body(ForceInit);
+		for (const auto& P : Parts)
+		{
+			if (!P.Value) Body += P.Key->GetBoundingBox();
+		}
+		M.OffsetX = -Body.GetCenter().X;
+		M.Body = Body.ShiftBy(FVector(M.OffsetX, 0, 0));
+		for (const auto& P : Parts)
+		{
+			UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this);
+			Ism->SetupAttachment(RootComponent);
+			Ism->SetMobility(EComponentMobility::Movable);
+			Ism->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Ism->SetStaticMesh(P.Key);
+			Ism->NumCustomDataFloats = 1;
+			Ism->RegisterComponent();
+			ModelMeshes.Add(Ism);
+			if (P.Value)
+			{
+				const FBox B = P.Key->GetBoundingBox();
+				M.Wheels.Add({Ism, B.GetCenter(), B.GetExtent().Z});
+			}
+			else
+			{
+				M.Rigid.Add(Ism);
+			}
+		}
+		M.RigidXf.SetNum(M.Rigid.Num());
+		M.WheelXf.SetNum(M.Wheels.Num());
+		ClassModels.FindOrAdd(D.Cls).Add(Models.Num());
+		Models.Add(MoveTemp(M));
+	}
+	UE_LOG(LogTollScene, Log, TEXT("vehicles: %d detailed models%s"), Models.Num(), Models.Num() ? TEXT("") : TEXT(" (City Sample Vehicles not installed; drawing boxes)"));
 }
 
 void ATollTrafficActor::LoadPlazas()
@@ -572,6 +672,7 @@ void ATollTrafficActor::BeginPlay()
 	Super::BeginPlay();
 	LoadRoad();
 	LoadPlazas();
+	LoadModels();
 	ApplyTimeOfDay();
 	FrameCamera();
 	if (UTollFeedSubsystem* Feed = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTollFeedSubsystem>() : nullptr)
@@ -634,6 +735,7 @@ void ATollTrafficActor::Tick(float DeltaSeconds)
 		M.PrevSpeed = V.Speed;
 		M.Accel += (FMath::Clamp(A, -8.0, 4.0) - M.Accel) * FMath::Min(1.0, Dt * 4);
 		M.Phase += Dt * (7.0 + (V.Id % 7) * 0.6) * FMath::Min(V.Speed / 8.0, 1.0);
+		M.Dist += V.Speed * Dt;
 		const bool bHeavy = V.Cls == TEXT("3") || V.Cls == TEXT("4");
 		// braking dips the nose (negative pitch), pulling away lifts it; heavies move less
 		const double Pitch = FMath::Clamp(M.Accel * (bHeavy ? 0.25 : 0.5), -2.5, 1.5);
@@ -648,6 +750,63 @@ void ATollTrafficActor::Tick(float DeltaSeconds)
 	HeadXf.Reset();
 	TailXf.Reset();
 	BrakeXf.Reset();
+	const bool bLampsOn = Night > 0.05;
+
+	// detailed models: a model per vehicle picked from its class's pool by id
+	for (FVehicleModel& M : Models)
+	{
+		for (TArray<FTransform>& X : M.RigidXf) X.Reset();
+		for (TArray<FTransform>& X : M.WheelXf) X.Reset();
+		M.Packed.Reset();
+	}
+	TArray<bool> Done;
+	Done.SetNumZeroed(Vis.Num());
+	for (int32 i = 0; i < Vis.Num(); ++i)
+	{
+		const TollTraffic::FVisible& V = Vis[i];
+		const TArray<int32>* Pool = ClassModels.Find(V.Cls);
+		if (!Pool || Pool->Num() == 0) continue;
+		FVehicleModel& M = Models[(*Pool)[(uint32(V.Id) * 2654435761u >> 8) % uint32(Pool->Num())]];
+		Done[i] = true;
+		const FTransform Base(Body[i], TollSpace::ToWorld(Origin, DrawnPos[i].X, DrawnPos[i].Y, 0.03 + Bob[i]));
+		const FTransform Shift(FVector(M.OffsetX, 0, 0));
+		for (TArray<FTransform>& X : M.RigidXf) X.Add(Shift * Base);
+		const double Dist = Motion.FindRef(V.Id).Dist * 100.0;
+		for (int32 w = 0; w < M.Wheels.Num(); ++w)
+		{
+			const FVehicleModel::FWheel& Wh = M.Wheels[w];
+			// rolling forward turns the front of the wheel down: negative pitch about the hub
+			const double Spin = -FMath::RadiansToDegrees(Dist / Wh.Radius);
+			M.WheelXf[w].Add(FTransform(-Wh.Centre) * FTransform(FRotator(FMath::Fmod(Spin, 360.0), 0, 0)) * FTransform(Wh.Centre) * Shift * Base);
+		}
+
+		// lamps: the pack's lamp bits, and glowing plates at the lamp positions, which read better at dusk
+		const bool bBrake = Motion.FindRef(V.Id).Accel < -0.8;
+		uint32 Lamps = 0;
+		if (bLampsOn) Lamps |= RunFront | RunRear | Head;
+		if (bBrake) Lamps |= Brake;
+		const FBox& B = M.Body;
+		const double LampZ = FMath::Clamp(B.Max.Z * 0.42, 65.0, 115.0);
+		const double Side = B.Max.Y - 32.0;
+		const FVector LampScale(0.01, 0.2, 0.08);
+		for (const double S : {-Side, Side})
+		{
+			if (bLampsOn)
+			{
+				HeadXf.Add(FTransform(Body[i], Base.TransformPosition(FVector(B.Max.X + 1.5, S, LampZ)), LampScale));
+				if (!bBrake) TailXf.Add(FTransform(Body[i], Base.TransformPosition(FVector(B.Min.X - 1.5, S, LampZ)), LampScale));
+			}
+			if (bBrake) BrakeXf.Add(FTransform(Body[i], Base.TransformPosition(FVector(B.Min.X - 1.5, S, LampZ)), LampScale));
+		}
+		M.Packed.Add(PackVehicle(float((uint32(V.Id) * 2246822519u >> 12) % 1000u) / 999.f, Lamps));
+	}
+	for (FVehicleModel& M : Models)
+	{
+		for (int32 k = 0; k < M.Rigid.Num(); ++k) SetInstances(M.Rigid[k], M.RigidXf[k], &M.Packed);
+		for (int32 w = 0; w < M.Wheels.Num(); ++w) SetInstances(M.Wheels[w].Ism, M.WheelXf[w], &M.Packed);
+	}
+
+	// boxes for everything without a model (motorbikes, or all of them without the pack)
 	for (int32 c = 0; c < ClassMeshes.Num(); ++c)
 	{
 		Scratch.Reset();
@@ -658,7 +817,7 @@ void ATollTrafficActor::Tick(float DeltaSeconds)
 		for (int32 i = 0; i < Vis.Num(); ++i)
 		{
 			const TollTraffic::FVisible& V = Vis[i];
-			if (LookIndex(V.Cls) != c) continue;
+			if (Done[i] || LookIndex(V.Cls) != c) continue;
 			const FVector Pos = TollSpace::ToWorld(Origin, DrawnPos[i].X, DrawnPos[i].Y, H / 2 + Bob[i]);
 			const FTransform Xf(Body[i], Pos);
 			Scratch.Add(FTransform(Body[i], Pos, Scale));

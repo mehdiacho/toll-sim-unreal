@@ -1,12 +1,19 @@
 # Attribution
 
 Third-party content in this project, and the licence each comes under. Only
-licence-safe sources are used: Fab (free and Megascans), Poly Haven (CC0),
-Quaternius (CC0) and Kenney (CC0). Every entry here has a matching row in
+licence-safe sources are used: Fab (free and Megascans), Poly Haven,
+Quaternius (CC0) and Kenney (CC0). None of it is committed: the packs come from
+the Fab library and `Scripts/import_assets.py` brings in the ones that are not
+Unreal-format. Every entry here has a matching row in
 `assets-manifest.json`.
 
 | Asset | Source | Author | Licence | Used for |
 |---|---|---|---|---|
+| City Sample Vehicles | Fab (free) | Epic Games | Fab Standard Licence, Unreal Engine only | Cars, vans, trucks, bus, truck and trailer (`Content/CitySampleVehicles/`) |
+| Namaqualand Environment and Asset Pack | Fab (free) | Poly Haven | CC BY 4.0 (as listed on Fab) | Searsia bushes (mopane stand-in), shrubs, boulders and rocks (`Content/Namaqualand/`) |
+| Acacia Tree | Fab (free) | Incg5764 | CC BY 4.0 | Acacia trees (`Content/ThirdParty/AcaciaTree/`) |
+| Dry Grass, Thatching Grass, Dead Shrubs | Fab (free Quixel Megascans) | Quixel | Fab Standard Licence | Grass and low shrubs (`Content/ThirdParty/Megascans/`) |
+| Dry Cracked Mud, Gravel Ground, Rippled Sand, Road Asphalt | Fab (free Quixel Megascans) | Quixel | Fab Standard Licence | Ground, shoulder and asphalt surfaces (`Content/ThirdParty/Megascans/`) |
 
 Traffic data, the road network and the toll plaza layout come from the
 `toll-sim` project (SUMO, OpenStreetMap data © OpenStreetMap contributors, ODbL).

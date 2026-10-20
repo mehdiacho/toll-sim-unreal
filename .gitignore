@@ -11,6 +11,8 @@ DerivedDataCache/
 Build/
 # third-party content is listed in assets-manifest.json, never committed
 Content/ThirdParty/
+Content/CitySampleVehicles/
+Content/Namaqualand/
 Plugins/*/Binaries/
 Plugins/*/Intermediate/
 
