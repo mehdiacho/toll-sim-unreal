@@ -35,7 +35,7 @@ This repo is **v2**, an Unreal Engine 5 rendering of the same corridor. Mehdi's 
 | M2 | Road, markings, the three plazas from the browser's geometry, DEM terrain | stills `docs/stills/m2-*` | **done** (7877196, b859529) |
 | M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **done**: vehicles, primitive motorbikes, lamps, wheel spin, time of day; 30 s dusk clip `docs/clips/m3-dusk-30s.mp4` (fixed-step frames + ffmpeg, not MRQ) |
 | M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **done** 2026-10-22: foliage (b9976b5), Kalahari ground, horizon haze, hero stills `m4-hero-*`, VRAM at High 3.4 GB steady (see Gotchas). Later: a dry-season colour grade and a scrub line to the horizon (`m5-grade-*`) |
-| M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | **in progress**: the Win64 Shipping package (3.6 GB) runs from a clean folder against the replay and live (`m5-package-*`); credits screen in; **R2 upload waits on Mehdi's OK**; clips on the project page not done |
+| M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | **in progress**: the Win64 Shipping package (2.3 GB) runs from a clean folder against the replay and live (`m5-package-*`); credits screen in; **R2 upload waits on Mehdi's OK**; clips on the project page not done |
 
 ## Where everything lives
 
@@ -102,7 +102,12 @@ python Scripts/make_terrain.py Incoming/dem
 MSYS_NO_PATHCONV=1 "$UE/Binaries/Win64/UnrealEditor.exe" "$P" -game -RenderOffscreen -ResX=640 -ResY=360 -TollReplay   -TollListAssets="X:/Projects/toll-sim-unreal/Scripts/cook-list.txt" -TollShot="C:/tmp/list.png" -TollShotDelay=5
 MSYS_NO_PATHCONV=1 "$UE/Binaries/Win64/UnrealEditor-Cmd.exe" "$P" -run=pythonscript   -script="X:/Projects/toll-sim-unreal/Scripts/make_cook_list.py" -unattended -nosplash
 
-# Win64 Shipping package into X:/Builds/toll-sim-unreal/Windows (~25 min cold, 3.6 GB).
+# halve the City Sample vehicle textures (edits the pack in place; redo after reinstalling the pack,
+# or set CAP = False in the script and run it to restore the originals)
+MSYS_NO_PATHCONV=1 "$UE/Binaries/Win64/UnrealEditor-Cmd.exe" "$P" -run=pythonscript   -script="X:/Projects/toll-sim-unreal/Scripts/cap_vehicle_textures.py" -unattended -nosplash
+
+# Win64 Shipping package into X:/Builds/toll-sim-unreal/Windows (~25 min cold, 2.3 GB;
+# the first cook after changing the texture caps re-encodes them and took about 50 min).
 # Run it from a .bat via PowerShell or cmd; "cmd //c" with a long inline command from Git Bash
 # silently did nothing. The cook holds the editor DLL, so don't build while it runs.
 "$UE/Build/BatchFiles/RunUAT.bat" BuildCookRun -project="$P" -platform=Win64 -clientconfig=Shipping   -build -cook -stage -pak -iostore -compressed -prereqs -nodebuginfo   -archive -archivedirectory=X:/Builds/toll-sim-unreal -unattended -utf8output -nop4
@@ -185,7 +190,9 @@ Stills that prove a step go in `docs/stills/` (LFS).
      `/Engine/BasicShapes`, `/Game/Toll` and `/Game/ThirdParty`. The scene finds pack meshes by
      folder at runtime, so nothing references them: `/Game/Toll/DA_CookList` (a `UTollCookList`)
      holds hard references to the 125 it draws, and their materials and textures follow. Cooking
-     whole pack folders instead made it 5.0 GB. `Config/Windows/WindowsEngine.ini` ships DX12 SM6 only. `Content/Data` is staged
+     whole pack folders instead made it 5.0 GB; the cook list brought it to 3.6 GB, and capping
+     the vehicle textures (`Scripts/cap_vehicle_textures.py`) to 2.3 GB. In the `m5-tex-*` close-ups
+     (same replay frame, before and after) the mean pixel difference is 0.2 to 0.4 of 255. `Config/Windows/WindowsEngine.ini` ships DX12 SM6 only. `Content/Data` is staged
      as loose files. It was tested from a clean folder: the replay renders, and without `-TollReplay`
      it connects to the live feed (an HTTPS connection to mehdiacho.tech, and different traffic).
    - Done: the credits screen (`ATollHUD`), the dry-season grade, and the scrub line to the horizon.
@@ -262,9 +269,16 @@ Stills that prove a step go in `docs/stills/` (LFS).
 - **Coordinates.** `TollSpace::ToWorld(Origin, x, y, z)`: sim metres become Unreal cm, with Y
   flipped. The feed position is the front bumper.
 - **Packaging.**
-  - The package is 3.6 GB. 2.45 GB of that is City Sample vehicle textures (AORM, grime and
-    colour maps up to about 175 MB each); capping the vehicle texture groups at 2K in a Windows
-    device profile is the next lever. The engine's NNE plugin adds 103 MB.
+  - The package is 2.3 GB. City Sample vehicle textures were 2.45 GB of the 3.6 GB; capped they're
+    1.08 GB. They share TEXTUREGROUP_World with the ground and foliage, so a device-profile group
+    cap would hit those too: `Scripts/cap_vehicle_textures.py` sets them per asset instead.
+    Most are virtual textures, many UDIM grids of 2K tiles (up to 28672x102400), where
+    MaxTextureSize isn't "2K", so those get LOD bias 1; plain ones over 2K get MaxTextureSize 2048.
+    **The pack isn't committed, so the cap lives only in this machine's copy.** Reinstall the
+    pack and the next package is 3.6 GB again unless you re-run the script.
+    The engine's NNE plugin adds 103 MB.
+  - Follow-cam stills aren't repeatable on frame time (load hitches shift the replay). For
+    before/after pairs add `-benchmark -fps=30`, which fixes the timestep.
   - A `PrimaryAssetLabel` made and saved from Python had no bundle data, so the cook ignored it
     (571 MB package, no vehicles). That's why the cook list is a plain data asset with hard refs.
   - Shipping keeps no log, so test with `-TollShot` stills (`Scripts/test-package.sh`).
