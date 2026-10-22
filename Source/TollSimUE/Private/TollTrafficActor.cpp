@@ -746,6 +746,18 @@ double ATollTrafficActor::GroundZ(double X, double Y) const
 	return Z(i, j) + Fx * (Z(i + 1, j) - Z(i, j)) + Fy * (Z(i + 1, j + 1) - Z(i + 1, j));
 }
 
+bool ATollTrafficActor::OnApron(const FVector2D& P, double Margin) const
+{
+	// the flared plaza asphalt reaches well past the exported lanes' centrelines
+	for (const TollPlaza::FLayout& L : Layouts)
+	{
+		const FVector2D Q = L.ToUV(P.X, P.Y);
+		const double Flare = FMath::Max(TollPlaza::Flare(Q.X), TollPlaza::Flare(-Q.X));
+		if (Flare > 0 && FMath::Abs(Q.Y) < L.HalfWidth * Flare + Margin) return true;
+	}
+	return false;
+}
+
 double ATollTrafficActor::RoadDist(const FVector2D& P, double Max) const
 {
 	double Best = Max * Max;
@@ -841,8 +853,9 @@ void ATollTrafficActor::LoadFoliage()
 					const double Patch = 0.5 + 0.5 * FMath::Sin(P.X * 0.013 + FMath::Sin(P.Y * 0.009) * 2.0) * FMath::Cos(P.Y * 0.011 + FMath::Sin(P.X * 0.007) * 2.0);
 					const double Edge = FMath::Clamp((K.Radius - D) / (K.Radius * 0.3), 0.0, 1.0);
 					if (R2.FRand() > K.Chance * (0.35 + 0.9 * Patch) * Edge) continue;
-					if (D < 45) continue; // the plaza apron and buildings
+					if (D < 45) continue; // the plaza buildings
 					if (RoadDist(P, K.Clear + 1) < K.Clear) continue;
+					if (OnApron(P, 1.5)) continue;
 					const int32 Mi = R2.RandRange(0, Meshes.Num() - 1);
 					const FBox Bx = Meshes[Mi]->GetBoundingBox();
 					const double MeshH = FMath::Max(Bx.GetSize().Z, 1.0);

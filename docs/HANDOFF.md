@@ -34,7 +34,7 @@ This repo is **v2**, an Unreal Engine 5 rendering of the same corridor. Mehdi's 
 | M1 | Feed parity: SSE plus replay; vehicles at the browser's positions | GoldenPositions test, under 0.1 m | **done** (c1edec0, e046feb) |
 | M2 | Road, markings, the three plazas from the browser's geometry, DEM terrain | stills `docs/stills/m2-*` | **done** (7877196, b859529) |
 | M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **done**: vehicles, primitive motorbikes, lamps, wheel spin, time of day; 30 s dusk clip `docs/clips/m3-dusk-30s.mp4` (fixed-step frames + ffmpeg, not MRQ) |
-| M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **in progress**: foliage scatter (b9976b5) and Kalahari ground (stills `m4-ground-*`) and the horizon haze (stills `m4-horizon-*`) done; post, hero stills and VRAM check not started |
+| M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **done** 2026-10-22: foliage (b9976b5), Kalahari ground, horizon haze, hero stills `m4-hero-*`, VRAM at High 3.4 GB steady (see Gotchas). Post is only exposure and bloom; a grade is optional polish |
 | M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | not started |
 
 ## Where everything lives
@@ -148,16 +148,19 @@ Stills that prove a step go in `docs/stills/` (LFS).
    lamp (stills `m3-motorbike-*`). No pack has a bike. A real CC0 or Fab bike mesh would be
    better, but downloading one needs Mehdi's OK. Next: more clips (day, night, and a close chase
    with `-TollCamFollow`).
-3. **M4 finish.**
-   - ~~Horizon band~~ done 2026-10-22. It wasn't missing ground (a flat fill already runs out to
-     200 km). The sky atmosphere's blue ambient light in the height fog turned the bare far ground
-     into a sea. Now the fog gets a dust colour by day that fades out as the sun sets (`ApplyTimeOfDay`).
-     A distant scrub line would still help, since there's no vegetation beyond about 1.5 km.
-   - Grass cull and density tuning.
-   - Hero stills at each plaza.
-   - A VRAM check under 6 GB at High.
-   - Optionally, Greasewood and Namaqualand `searsia` as mopane stand-ins; mopane itself isn't
-     in any pack.
+3. ~~M4~~ done 2026-10-22.
+   - Horizon band: it wasn't missing ground (a flat fill already runs out to 200 km). The sky
+     atmosphere's blue ambient light in the height fog turned the bare far ground into a sea. Now
+     the fog gets a dust colour by day that fades out as the sun sets (`ApplyTimeOfDay`).
+   - Hero stills `docs/stills/m4-hero-<plaza>-{close,wide}.png`: eyes `70,35,5` and `170,60,22`
+     at TollTime 17.0.
+   - Foliage used to grow on the flared plaza apron (it was cleared only from lane centrelines).
+     `OnApron` now keeps it 1.5 m off the flare.
+   - VRAM: see Gotchas.
+   - Optional polish: a colour grade; a distant scrub line (nothing grows beyond about 1.5 km);
+     Greasewood and Namaqualand `searsia` as mopane stand-ins (no pack has mopane); a real
+     motorbike mesh.
+4. **Next:** more clips (day, night, a close chase with `-TollCamFollow`), then M5.
 
 After that comes M5:
 
@@ -214,6 +217,16 @@ After that comes M5:
   atmosphere, the sky's ambient light colours the fog. Setting a colour adds to that, so any
   constant colour washes out the dusk sky (a blue one turned it to grey fog). Fade it with sun
   height, as `ApplyTimeOfDay` does.
+- **VRAM (measured 2026-10-22, 1920x1080, Mmamashia default view, per-process GPU counters).**
+  - At High (`-ExecCmds="scalability 2"`) the game settles at **3.4 GB dedicated** plus about
+    0.3 GB shared. At Epic (the default in `-game` here) it settles at **4.2 GB**.
+  - Both spike for a few seconds about 25 s in, to about 4.9 GB dedicated plus about 1 GB shared,
+    while the scene is built (mostly the 760k foliage instances). That spike doesn't depend on
+    scalability.
+  - The log warns `[VSM] Non-Nanite Marking Job Queue overflow`: the foliage isn't Nanite.
+    It matters for frame time, not memory.
+  - Re-measure with `Scripts/vram.ps1 -Label high -Sg 2`, which samples `\GPU Process Memory(pid_<pid>_*)\Dedicated Usage` and
+    `Shared Usage`. `nvidia-smi` only gives the whole card, desktop included.
 - **Git Bash** rewrites `/Engine/...`-style arguments, so use `MSYS_NO_PATHCONV=1`.
 - **LFS hooks:** the global `hooksPath` stops `git lfs install`, so the LFS hooks were written
   into `.git/hooks` by hand.

@@ -107,6 +107,8 @@ private:
 	double GroundZ(double X, double Y) const;
 	/** Distance in metres from a sim position to the nearest lane centreline, up to Max. */
 	double RoadDist(const FVector2D& P, double Max) const;
+	/** Whether a sim position is on a plaza's flared apron, or within Margin metres of it. */
+	bool OnApron(const FVector2D& P, double Margin) const;
 	void LoadPlazas();
 	void FrameCamera();
 	void FollowCamera(const TArray<TollTraffic::FVisible>& Vis);
