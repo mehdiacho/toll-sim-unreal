@@ -565,6 +565,21 @@ void ATollTrafficActor::ApplyTimeOfDay()
 	Night = FMath::Clamp((4.0 - Elev) / 10.0, 0.0, 1.0); // dusk starts with the sun 4 deg up
 	Moon->SetIntensity(0.25f * static_cast<float>(Night));
 
+	// dry-season dust haze: the default blue fog turned the bare far ground into a sea at the
+	// horizon. Warm by day; it fades back to the engine's fog as the sun goes down,
+	// because a dust-coloured fog flattens the sunset sky to brown. -TollHaze=r,g,b sets the day colour.
+	FLinearColor Dust(0.62f, 0.52f, 0.40f);
+	FString HazeArg;
+	TArray<FString> HazeParts;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TollHaze="), HazeArg, false) && HazeArg.ParseIntoArray(HazeParts, TEXT(",")) == 3)
+	{
+		Dust = FLinearColor(FCString::Atof(*HazeParts[0]), FCString::Atof(*HazeParts[1]), FCString::Atof(*HazeParts[2]));
+	}
+	const float Dayness = static_cast<float>(FMath::SmoothStep(0.25, 0.8, Up));
+	Fog->SetFogInscatteringColor(Dust * Dayness); // the engine default is black: the sky atmosphere lights the fog
+	Fog->SetSkyAtmosphereAmbientContributionColorScale(FMath::Lerp(FLinearColor::White, FLinearColor(1.0f, 0.82f, 0.62f), Dayness));
+	Sky->SetGroundAlbedo(FColor(0x8a, 0x70, 0x56));
+
 	// auto exposure would turn night into a grey day: cap how far it may open up.
 	// -TollEV=<ev100> overrides the night cap for tuning.
 	FPostProcessSettings& PP = Post->Settings;

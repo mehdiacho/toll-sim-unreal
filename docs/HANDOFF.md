@@ -34,7 +34,7 @@ This repo is **v2**, an Unreal Engine 5 rendering of the same corridor. Mehdi's 
 | M1 | Feed parity: SSE plus replay; vehicles at the browser's positions | GoldenPositions test, under 0.1 m | **done** (c1edec0, e046feb) |
 | M2 | Road, markings, the three plazas from the browser's geometry, DEM terrain | stills `docs/stills/m2-*` | **done** (7877196, b859529) |
 | M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **done**: vehicles, primitive motorbikes, lamps, wheel spin, time of day; 30 s dusk clip `docs/clips/m3-dusk-30s.mp4` (fixed-step frames + ffmpeg, not MRQ) |
-| M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **in progress**: foliage scatter (b9976b5) and Kalahari ground (stills `m4-ground-*`) done; post, horizon band and VRAM check not started |
+| M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **in progress**: foliage scatter (b9976b5) and Kalahari ground (stills `m4-ground-*`) and the horizon haze (stills `m4-horizon-*`) done; post, hero stills and VRAM check not started |
 | M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | not started |
 
 ## Where everything lives
@@ -111,6 +111,7 @@ Run options:
   `-TollCamEye` is then relative to the vehicle (default `9,3,2.2`); `0.5,-4.5,1.3` is side-on.
 - `-TollTime=<solar hour>` sets the time: 14 is day, **about 17.9 is dusk** (18.8 is already night), 20.5 is night.
 - `-TollGroundTint=r,g,b` overrides the ground tint (default 0.5,0.47,0.44, muted bushveld soil) for tuning.
+- `-TollHaze=r,g,b` sets the daytime dust-haze colour (default 0.62,0.52,0.40).
 - `-TollEV=<ev>` sets night exposure.
 
 Stills that prove a step go in `docs/stills/` (LFS).
@@ -148,7 +149,10 @@ Stills that prove a step go in `docs/stills/` (LFS).
    better, but downloading one needs Mehdi's OK. Next: more clips (day, night, and a close chase
    with `-TollCamFollow`).
 3. **M4 finish.**
-   - A horizon band: the sky-atmosphere ground shows as a dark line at the horizon.
+   - ~~Horizon band~~ done 2026-10-22. It wasn't missing ground (a flat fill already runs out to
+     200 km). The sky atmosphere's blue ambient light in the height fog turned the bare far ground
+     into a sea. Now the fog gets a dust colour by day that fades out as the sun sets (`ApplyTimeOfDay`).
+     A distant scrub line would still help, since there's no vegetation beyond about 1.5 km.
    - Grass cull and density tuning.
    - Hero stills at each plaza.
    - A VRAM check under 6 GB at High.
@@ -206,6 +210,10 @@ After that comes M5:
 - **Fab "Add to project"** only lists projects that are open in an editor, and City Sample only
   offers UE 5.0–5.3. That is why the packs were copied from the FabLibrary cache instead.
   "No Unreal Engine projects found" in the launcher is normal for this custom-path engine.
+- **Height fog colour.** The UE5 fog's inscattering colour defaults to black; with a sky
+  atmosphere, the sky's ambient light colours the fog. Setting a colour adds to that, so any
+  constant colour washes out the dusk sky (a blue one turned it to grey fog). Fade it with sun
+  height, as `ApplyTimeOfDay` does.
 - **Git Bash** rewrites `/Engine/...`-style arguments, so use `MSYS_NO_PATHCONV=1`.
 - **LFS hooks:** the global `hooksPath` stops `git lfs install`, so the LFS hooks were written
   into `.git/hooks` by hand.
