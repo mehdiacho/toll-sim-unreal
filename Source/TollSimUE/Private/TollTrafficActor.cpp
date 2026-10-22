@@ -22,6 +22,7 @@
 #include "TollFeedSubsystem.h"
 #include "TollPlazaActor.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/UObjectIterator.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogTollScene, Log, All);
 
@@ -1021,6 +1022,21 @@ void ATollTrafficActor::BeginPlay()
 	LoadPlazas();
 	LoadModels();
 	LoadFoliage();
+	// -TollListAssets=<file>: every mesh the scene drew from, for the cook list
+	// (Scripts/make_cook_list.py), so the package doesn't carry whole packs
+	FString ListPath;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TollListAssets="), ListPath))
+	{
+		TSet<FString> Used;
+		for (TObjectIterator<UStaticMeshComponent> It; It; ++It)
+		{
+			if (It->GetWorld() == GetWorld() && It->GetStaticMesh()) Used.Add(It->GetStaticMesh()->GetPathName());
+		}
+		TArray<FString> Lines = Used.Array();
+		Lines.Sort();
+		FFileHelper::SaveStringArrayToFile(Lines, *ListPath);
+		UE_LOG(LogTollScene, Log, TEXT("listed %d meshes in %s"), Lines.Num(), *ListPath);
+	}
 	ApplyTimeOfDay();
 	FrameCamera();
 	if (UTollFeedSubsystem* Feed = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTollFeedSubsystem>() : nullptr)
