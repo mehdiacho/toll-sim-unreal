@@ -8,11 +8,13 @@
 #include "Misc/Parse.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
+#include "TollHUD.h"
 #include "TollTrafficActor.h"
 
 ATollGameMode::ATollGameMode()
 {
 	DefaultPawnClass = nullptr;
+	HUDClass = ATollHUD::StaticClass();
 	PrimaryActorTick.bCanEverTick = true;
 }
 

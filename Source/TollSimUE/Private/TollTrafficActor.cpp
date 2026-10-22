@@ -596,6 +596,29 @@ void ATollTrafficActor::ApplyTimeOfDay()
 	}
 	PP.bOverride_BloomIntensity = true;
 	PP.BloomIntensity = static_cast<float>(FMath::Lerp(0.675, 1.2, Night));
+
+	// grade: dry season. The packs' greens are spring-lush and the soil reads orange, so by day pull
+	// the saturation down (green most), add a little contrast and warm the white balance; at dusk and
+	// night ease back to neutral so the sunset and the lamps keep their colour.
+	// -TollGrade=saturation,contrast,temp sets the day values.
+	double GSat = 0.86, GCon = 1.06, GTemp = 6900;
+	FString GradeArg;
+	TArray<FString> GradeParts;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TollGrade="), GradeArg, false) && GradeArg.ParseIntoArray(GradeParts, TEXT(",")) == 3)
+	{
+		GSat = FCString::Atod(*GradeParts[0]);
+		GCon = FCString::Atod(*GradeParts[1]);
+		GTemp = FCString::Atod(*GradeParts[2]);
+	}
+	const double G = Dayness;
+	PP.bOverride_ColorSaturation = true;
+	PP.ColorSaturation = FVector4(1.0, FMath::Lerp(1.0, 0.82, G), 1.0, FMath::Lerp(1.0, GSat, G));
+	PP.bOverride_ColorContrast = true;
+	PP.ColorContrast = FVector4(1.0, 1.0, 1.0, FMath::Lerp(1.0, GCon, G));
+	PP.bOverride_WhiteTemp = true;
+	PP.WhiteTemp = static_cast<float>(FMath::Lerp(6500.0, GTemp, G)); // above 6500 warms the image
+	PP.bOverride_VignetteIntensity = true;
+	PP.VignetteIntensity = 0.3f;
 	for (ATollPlazaActor* P : Plazas) P->SetNight(static_cast<float>(Night));
 
 	const float Head = Night > 0.05 ? 25.f : 0.f;
@@ -793,6 +816,7 @@ void ATollTrafficActor::LoadFoliage()
 		double Radius;         // around each plaza, m
 		double Cull;           // m
 		bool bShadow;
+		double Inner = 0;      // m: the far scrub starts where the near discs thin out
 	};
 	const FKind Kinds[] = {
 		{TEXT("grass"), {TEXT("/Game/ThirdParty/Megascans/DryGrass"), TEXT("/Game/ThirdParty/Megascans/ThatchingGrass")}, TEXT(""), 0.45, 1.1, 1.25, 0.85, 5, 450, 320, false},
@@ -800,6 +824,9 @@ void ATollTrafficActor::LoadFoliage()
 		{TEXT("bush"), {TEXT("/Game/Namaqualand/Meshes/Foliage/NN"), TEXT("/Game/GV_FreeShrubsPack/Meshes")}, TEXT("searsia_lucida|_full_"), 1.8, 4.5, 12, 0.4, 10, 2200, 2600, true},
 		{TEXT("acacia"), {TEXT("/Game/ThirdParty/AcaciaTree")}, TEXT(""), 5.0, 8.5, 40, 0.45, 14, 2600, 4000, true},
 		{TEXT("rock"), {TEXT("/Game/Namaqualand/Meshes/General/NN")}, TEXT("boulder_0"), 0.3, 1.6, 18, 0.25, 7, 900, 700, true},
+		// the scrub line to the horizon: sparse, unshadowed, nothing small enough to vanish at 5 km
+		{TEXT("far acacia"), {TEXT("/Game/ThirdParty/AcaciaTree")}, TEXT(""), 5.0, 8.0, 90, 0.5, 14, 7000, 9000, false, 1900},
+		{TEXT("far bush"), {TEXT("/Game/Namaqualand/Meshes/Foliage/NN"), TEXT("/Game/GV_FreeShrubsPack/Meshes")}, TEXT("searsia_lucida|_full_"), 2.5, 4.5, 60, 0.4, 10, 5000, 6000, false, 1700},
 	};
 	IAssetRegistry& Registry = IAssetRegistry::GetChecked();
 	FRandomStream Rand(20261020);
@@ -848,10 +875,10 @@ void ATollTrafficActor::LoadFoliage()
 					FRandomStream R2(int32(HashCombine(GetTypeHash(Cell), GetTypeHash(FString(K.Name)))));
 					const FVector2D P((Cell.X + R2.FRand()) * K.Grid, (Cell.Y + R2.FRand()) * K.Grid);
 					const double D = FVector2D::Distance(P, C);
-					if (D > K.Radius) continue;
+					if (D > K.Radius || D < K.Inner) continue;
 					// thin out towards the disc edge, and in broad patches so it isn't uniform
 					const double Patch = 0.5 + 0.5 * FMath::Sin(P.X * 0.013 + FMath::Sin(P.Y * 0.009) * 2.0) * FMath::Cos(P.Y * 0.011 + FMath::Sin(P.X * 0.007) * 2.0);
-					const double Edge = FMath::Clamp((K.Radius - D) / (K.Radius * 0.3), 0.0, 1.0);
+					const double Edge = FMath::Clamp((K.Radius - D) / (K.Radius * 0.3), 0.0, 1.0) * (K.Inner > 0 ? FMath::Clamp((D - K.Inner) / 500.0 + 0.2, 0.0, 1.0) : 1.0);
 					if (R2.FRand() > K.Chance * (0.35 + 0.9 * Patch) * Edge) continue;
 					if (D < 45) continue; // the plaza buildings
 					if (RoadDist(P, K.Clear + 1) < K.Clear) continue;

@@ -6,6 +6,6 @@ public class TollSimUE : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine" });
-		PrivateDependencyModuleNames.AddRange(new[] { "Json", "HTTP", "ProceduralMeshComponent", "Projects" });
+		PrivateDependencyModuleNames.AddRange(new[] { "InputCore", "Json", "HTTP", "ProceduralMeshComponent", "Projects" });
 	}
 }

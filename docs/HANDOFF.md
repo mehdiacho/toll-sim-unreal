@@ -3,7 +3,7 @@
 Start here if you are picking this project up cold. Keep this file current: update it in the
 same commit as any milestone or working step (at least every 30 minutes of work).
 
-Last updated 2026-10-22.
+Last updated 2026-10-22 (M5 in progress).
 
 ## Goal and the choices already made
 
@@ -34,8 +34,8 @@ This repo is **v2**, an Unreal Engine 5 rendering of the same corridor. Mehdi's 
 | M1 | Feed parity: SSE plus replay; vehicles at the browser's positions | GoldenPositions test, under 0.1 m | **done** (c1edec0, e046feb) |
 | M2 | Road, markings, the three plazas from the browser's geometry, DEM terrain | stills `docs/stills/m2-*` | **done** (7877196, b859529) |
 | M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **done**: vehicles, primitive motorbikes, lamps, wheel spin, time of day; 30 s dusk clip `docs/clips/m3-dusk-30s.mp4` (fixed-step frames + ffmpeg, not MRQ) |
-| M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **done** 2026-10-22: foliage (b9976b5), Kalahari ground, horizon haze, hero stills `m4-hero-*`, VRAM at High 3.4 GB steady (see Gotchas). Post is only exposure and bloom; a grade is optional polish |
-| M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | not started |
+| M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **done** 2026-10-22: foliage (b9976b5), Kalahari ground, horizon haze, hero stills `m4-hero-*`, VRAM at High 3.4 GB steady (see Gotchas). Later: a dry-season colour grade and a scrub line to the horizon (`m5-grade-*`) |
+| M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | **in progress**: the Win64 Shipping package (about 5 GB) runs from a clean folder against the replay and live (`m5-package-*`); credits screen in; **R2 upload waits on Mehdi's OK**; clips on the project page not done |
 
 ## Where everything lives
 
@@ -96,6 +96,14 @@ MSYS_NO_PATHCONV=1 "$UE/Binaries/Win64/UnrealEditor.exe" "$P" -game -RenderOffsc
 # refresh feed data from a toll-sim checkout; terrain from DEM tiles
 Scripts/sync-data.sh ../toll-sim
 python Scripts/make_terrain.py Incoming/dem
+
+# Win64 Shipping package into X:/Builds/toll-sim-unreal/Windows (~25 min cold, about 5 GB).
+# Run it from a .bat via PowerShell or cmd; "cmd //c" with a long inline command from Git Bash
+# silently did nothing. The cook holds the editor DLL, so don't build while it runs.
+"$UE/Build/BatchFiles/RunUAT.bat" BuildCookRun -project="$P" -platform=Win64 -clientconfig=Shipping   -build -cook -stage -pak -iostore -compressed -prereqs -nodebuginfo   -archive -archivedirectory=X:/Builds/toll-sim-unreal -unattended -utf8output -nop4
+
+# copy the package into an empty folder and take a still against the replay and the live feed
+Scripts/test-package.sh
 ```
 
 Run options:
@@ -113,6 +121,11 @@ Run options:
 - `-TollGroundTint=r,g,b` overrides the ground tint (default 0.5,0.47,0.44, muted bushveld soil) for tuning.
 - `-TollHaze=r,g,b` sets the daytime dust-haze colour (default 0.62,0.52,0.40).
 - `-TollEV=<ev>` sets night exposure.
+- `-TollGrade=saturation,contrast,temp` sets the daytime grade (default `0.86,1.06,6900`;
+  `1,1,6500` is neutral). It fades to neutral at dusk.
+- In the game, **C** shows the credits and **Esc** quits. The credits show for the first 12 s.
+  `-TollShot` and `-TollClip` runs hide them; `-TollCredits` forces them on (for a still);
+  `-TollNoCredits` hides them.
 
 Stills that prove a step go in `docs/stills/` (LFS).
 
@@ -131,7 +144,10 @@ Stills that prove a step go in `docs/stills/` (LFS).
     - wheel spin about each hub;
     - per-instance custom data: f16 paint fraction plus lamp bits;
     - emissive lamp plates;
-    - foliage: `LoadFoliage`, HISMs scattered in discs around each plaza and kept clear of the roads.
+    - foliage: `LoadFoliage`, HISMs scattered in discs around each plaza and kept clear of the
+      roads, plus a sparse unshadowed ring of acacia and bush out to 7 km (the scrub line);
+    - post: exposure, bloom and the grade in `ApplyTimeOfDay`.
+  - `ATollHUD`: the on-screen credits (keep its list in step with `ATTRIBUTION.md`), C and Esc.
 - `Scripts/`: `import_assets.py`, `make_materials.py` (`M_VertexColor`, `M_Textured`, `M_Color`),
   `make_terrain.py`, `sync-data.sh`, `backup-nas.sh`.
 - `Content/Toll/Materials/`: committed `M_VertexColor`, `M_Textured` and `M_Color`.
@@ -157,19 +173,19 @@ Stills that prove a step go in `docs/stills/` (LFS).
    - Foliage used to grow on the flared plaza apron (it was cleared only from lane centrelines).
      `OnApron` now keeps it 1.5 m off the flare.
    - VRAM: see Gotchas.
-   - Optional polish: a colour grade; a distant scrub line (nothing grows beyond about 1.5 km);
-     Greasewood and Namaqualand `searsia` as mopane stand-ins (no pack has mopane); a real
-     motorbike mesh.
-4. **Next:** more clips (day, night, a close chase with `-TollCamFollow`), then M5.
-
-After that comes M5:
-
-- Packaging (`RunUAT BuildCookRun`, Win64 Shipping). Assets referenced only by path need
-  `DirectoriesToAlwaysCook` for `/Game/CitySampleVehicles`, `/Game/Namaqualand` and
-  `/Game/ThirdParty`.
-- An R2 upload.
-- Clips on the project page.
-- An in-game credits screen for CC BY.
+   - Optional polish still open: Greasewood and Namaqualand `searsia` as mopane stand-ins (no
+     pack has mopane); a real motorbike mesh (candidates below, download needs Mehdi's OK).
+4. **M5, in progress (2026-10-22).**
+   - Done: the Shipping package. `Config/DefaultGame.ini` cooks only `/Engine/Maps/Entry` plus an
+     explicit `DirectoriesToAlwaysCook` list, because the scene finds its assets by folder at
+     runtime. `Config/Windows/WindowsEngine.ini` ships DX12 SM6 only. `Content/Data` is staged
+     as loose files. It was tested from a clean folder: the replay renders, and without `-TollReplay`
+     it connects to the live feed (an HTTPS connection to mehdiacho.tech, and different traffic).
+   - Done: the credits screen (`ATollHUD`), the dry-season grade, and the scrub line to the horizon.
+   - **Waiting on Mehdi:** the R2 upload (zip the `Windows` folder; about 5 GB, so maybe trim
+     first, see Gotchas), and then a link on the project page.
+   - Next: more clips (day, night, a close chase with `-TollCamFollow`) and put them on the
+     project page.
 
 ## Open asks to Mehdi
 
@@ -178,6 +194,12 @@ After that comes M5:
 - **Merges** of toll-sim PRs and the portfolio need his explicit OK. **Downloads** need his OK,
   given in his own words. **Cloudflare DNS and tunnel changes** are his to make.
 - Decide whether the Megaplants Greasewood he added should be used.
+- **R2 upload of the package**: his OK first.
+- **Motorbike mesh** (Sketchfab, CC BY 4.0, downloading needs a Sketchfab sign-in and his OK):
+  Honda NXR Bros 2003 by andersonfo (`2e88ff65e98e4d0c802242bdeccaf28d`, 44k tris, glTF 41.6 MB),
+  a 150 cc trail bike of the kind common on African roads; or Bajaj Avenger by Chaitanya Krishnan
+  (`3969ae16e700478c8e1f87eaa93ee4dc`, 54k tris, 3.2 MB). Neither has a rider; the primitive
+  rider would stay.
 
 ## Gotchas
 
@@ -232,6 +254,12 @@ After that comes M5:
   into `.git/hooks` by hand.
 - **Coordinates.** `TollSpace::ToWorld(Origin, x, y, z)`: sim metres become Unreal cm, with Y
   flipped. The feed position is the front bumper.
+- **Packaging.**
+  - The package is about 5 GB, mostly City Sample Vehicles and the 1.4 GB Free Shrubs Pack. Cooking
+    only the meshes actually used, not whole folders, would shrink it.
+  - Shipping keeps no log, so test with `-TollShot` stills (`Scripts/test-package.sh`).
+  - Git Bash's `cp` treats `TollSimUE.exe` and the `TollSimUE` folder as one name; copy with robocopy.
+  - The HUD reads keys, so the module needs `InputCore`.
 - `Config/DefaultEngine.ini` has editor-written changes that weren't made on purpose; leave
   them uncommitted.
 

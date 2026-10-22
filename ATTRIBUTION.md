@@ -16,6 +16,9 @@ Unreal-format. Every entry here has a matching row in
 | Dry Grass, Thatching Grass, Dead Shrubs | Fab (free Quixel Megascans) | Quixel | Fab Standard Licence | Grass and low shrubs (`Content/ThirdParty/Megascans/`) |
 | Dry Cracked Mud, Gravel Ground, Rippled Sand, Road Asphalt | Fab (free Quixel Megascans) | Quixel | Fab Standard Licence | Ground, shoulder and asphalt surfaces (`Content/ThirdParty/Megascans/`) |
 
+The packaged game shows these credits on screen for its first 12 seconds and whenever C is
+pressed (`Source/TollSimUE/Private/TollHUD.cpp`; keep that list in step with this file).
+
 Traffic data, the road network and the toll plaza layout come from the
 `toll-sim` project (SUMO, OpenStreetMap data © OpenStreetMap contributors, ODbL).
 
