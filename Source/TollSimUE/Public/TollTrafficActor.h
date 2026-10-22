@@ -7,6 +7,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "TollPlaza.h"
+#include "TollTraffic.h"
 #include "TollTrafficActor.generated.h"
 
 class UCameraComponent;
@@ -59,6 +60,10 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Toll")
 	TArray<TObjectPtr<UInstancedStaticMeshComponent>> ClassMeshes;
 
+	/** Motorbike and rider, one instanced mesh per primitive part (no pack has a bike). */
+	UPROPERTY(VisibleAnywhere, Category = "Toll")
+	TArray<TObjectPtr<UInstancedStaticMeshComponent>> BikeMeshes;
+
 	UPROPERTY(VisibleAnywhere, Category = "Toll")
 	TObjectPtr<UDirectionalLightComponent> Sun;
 
@@ -104,6 +109,8 @@ private:
 	double RoadDist(const FVector2D& P, double Max) const;
 	void LoadPlazas();
 	void FrameCamera();
+	void FollowCamera(const TArray<TollTraffic::FVisible>& Vis);
+	int32 FollowId = INDEX_NONE;
 
 	UPROPERTY()
 	TArray<TObjectPtr<ATollPlazaActor>> Plazas; // parallel to Layouts
@@ -161,6 +168,7 @@ private:
 
 	TArray<FTransform> Scratch;
 	TArray<FTransform> HeadXf, TailXf, BrakeXf;
+	TArray<TArray<FTransform>> BikeXf; // per bike part
 	TArray<FVector2D> DrawnPos;
 	int32 Drawn = 0;
 };

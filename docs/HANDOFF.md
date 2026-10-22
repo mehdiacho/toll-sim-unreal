@@ -3,7 +3,7 @@
 Start here if you are picking this project up cold. Keep this file current: update it in the
 same commit as any milestone or working step (at least every 30 minutes of work).
 
-Last updated 2026-10-20.
+Last updated 2026-10-22.
 
 ## Goal and the choices already made
 
@@ -33,7 +33,7 @@ This repo is **v2**, an Unreal Engine 5 rendering of the same corridor. Mehdi's 
 | M0 | C++ project, repo, LFS, NAS backup | compiles headless | **done** (c1edec0) |
 | M1 | Feed parity: SSE plus replay; vehicles at the browser's positions | GoldenPositions test, under 0.1 m | **done** (c1edec0, e046feb) |
 | M2 | Road, markings, the three plazas from the browser's geometry, DEM terrain | stills `docs/stills/m2-*` | **done** (7877196, b859529) |
-| M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **done**: vehicles, lamps, wheel spin, time of day; 30 s dusk clip `docs/clips/m3-dusk-30s.mp4` (fixed-step frames + ffmpeg, not MRQ) |
+| M3 | Vehicles and light: real models, wheel spin, lamps, day, dusk and night | **30 s MRQ dusk clip** | **done**: vehicles, primitive motorbikes, lamps, wheel spin, time of day; 30 s dusk clip `docs/clips/m3-dusk-30s.mp4` (fixed-step frames + ffmpeg, not MRQ) |
 | M4 | Look: grass, acacia and mopane, ground materials, post | hero stills at each plaza; under 6 GB VRAM | **in progress**: foliage scatter (b9976b5) and Kalahari ground (stills `m4-ground-*`) done; post, horizon band and VRAM check not started |
 | M5 | Ship: clips on the project page, packaged build on R2, ATTRIBUTION complete | download runs from a clean folder and connects live | not started |
 
@@ -107,6 +107,8 @@ Run options:
   - `40,14,6` close
   - `110,22,30` default
   - `150,45,3` low roadside
+- `-TollCamFollow=<class>` (M, 1, 2, 3 or 4) chases the vehicle of that class nearest the plaza.
+  `-TollCamEye` is then relative to the vehicle (default `9,3,2.2`); `0.5,-4.5,1.3` is side-on.
 - `-TollTime=<solar hour>` sets the time: 14 is day, **about 17.9 is dusk** (18.8 is already night), 20.5 is night.
 - `-TollGroundTint=r,g,b` overrides the ground tint (default 0.5,0.47,0.44, muted bushveld soil) for tuning.
 - `-TollEV=<ev>` sets night exposure.
@@ -137,13 +139,14 @@ Stills that prove a step go in `docs/stills/` (LFS).
 
 ## In flight and the next 3 steps
 
-1. **Confirm the Free Shrubs Pack seller name** on its Fab page and fix ATTRIBUTION.md and the
-   manifest (the pack's folder only says "GV").
-2. **Motorbikes** still draw as red placeholder boxes (visible at the end of the dusk clip):
-   find a bike mesh or make the box darker and smaller. Then more clips (day, night, close).
-3. ~~30 s dusk clip~~ done. Previous note kept for reference: A Level Sequence plus an MRQ config, created by an editor
-   Python script and rendered with `-MoviePipelineConfig` against the replay at dusk (TollTime about 17.9; 18.8 is already dark).
-   ffmpeg to H.264 and VP9. Clips are deterministic because they use the replay.
+1. ~~Free Shrubs Pack seller~~ done 2026-10-22: Greenleaf Vision (Fab listing 7ca465ab, which
+   matches the cache folder). The listing page doesn't spell out its licence; free Fab listings
+   default to the Fab Standard Licence.
+2. ~~Motorbikes~~ done 2026-10-22: a bike and rider built from the engine's cube, cylinder and
+   sphere (`BikeParts` in `TollTrafficActor.cpp`, one ISM per part), with a head lamp and a tail
+   lamp (stills `m3-motorbike-*`). No pack has a bike. A real CC0 or Fab bike mesh would be
+   better, but downloading one needs Mehdi's OK. Next: more clips (day, night, and a close chase
+   with `-TollCamFollow`).
 3. **M4 finish.**
    - A horizon band: the sky-atmosphere ground shows as a dark line at the horizon.
    - Grass cull and density tuning.

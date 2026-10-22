@@ -12,7 +12,7 @@ Unreal-format. Every entry here has a matching row in
 | City Sample Vehicles | Fab (free) | Epic Games | Fab Standard Licence, Unreal Engine only | Cars, vans, trucks, bus, truck and trailer (`Content/CitySampleVehicles/`) |
 | Namaqualand Environment and Asset Pack | Fab (free) | Poly Haven | CC BY 4.0 (as listed on Fab) | Searsia bushes (mopane stand-in), shrubs, boulders and rocks (`Content/Namaqualand/`) |
 | Acacia Tree | Fab (free) | Incg5764 | CC BY 4.0 | Acacia trees (`Content/ThirdParty/AcaciaTree/`) |
-| Free Shrubs Pack (Ultra Realistic Wind) | Fab (free) | GV (seller name to confirm on Fab) | Fab Standard Licence | Thorn bush (`Content/GV_FreeShrubsPack/`) |
+| Free Shrubs Pack (Ultra Realistic Wind) | Fab (free) | Greenleaf Vision | Fab Standard Licence | Thorn bush (`Content/GV_FreeShrubsPack/`) |
 | Dry Grass, Thatching Grass, Dead Shrubs | Fab (free Quixel Megascans) | Quixel | Fab Standard Licence | Grass and low shrubs (`Content/ThirdParty/Megascans/`) |
 | Dry Cracked Mud, Gravel Ground, Rippled Sand, Road Asphalt | Fab (free Quixel Megascans) | Quixel | Fab Standard Licence | Ground, shoulder and asphalt surfaces (`Content/ThirdParty/Megascans/`) |
 

@@ -43,6 +43,43 @@ namespace
 		{TEXT("4"), 2.55, 3.9, FLinearColor::FromSRGBColor(FColor(0x9b, 0x8c, 0xf0))},
 	};
 
+	/**
+	 * A motorbike and rider built from the engine's basic shapes, because no pack has a bike.
+	 * Body space in metres: X forward from the vehicle centre, Z up from the road. The engine
+	 * cube and sphere are 1 m across; the cylinder is 1 m across and 1 m tall along Z.
+	 */
+	enum class EBikeShape : uint8 { Cube, Cylinder, Sphere };
+	struct FBikePart
+	{
+		EBikeShape Shape;
+		FVector Pos, Scale;
+		FRotator Rot;
+		FColor Color;
+	};
+	const FColor Tyre(0x14, 0x14, 0x14), Metal(0x3a, 0x3c, 0x40), Paint(0x8e, 0x1c, 0x1a), Seat(0x10, 0x10, 0x10),
+		Jacket(0x22, 0x2a, 0x36), Jeans(0x26, 0x2c, 0x3c), Helmet(0xd8, 0xd8, 0xd4);
+	const FBikePart BikeParts[] = {
+		{EBikeShape::Cylinder, {0.72, 0, 0.31}, {0.62, 0.62, 0.11}, {0, 0, 90}, Tyre},   // front wheel
+		{EBikeShape::Cylinder, {-0.70, 0, 0.32}, {0.64, 0.64, 0.14}, {0, 0, 90}, Tyre},  // rear wheel
+		{EBikeShape::Cylinder, {0.72, 0, 0.31}, {0.34, 0.34, 0.13}, {0, 0, 90}, Metal},  // front rim
+		{EBikeShape::Cylinder, {-0.70, 0, 0.32}, {0.36, 0.36, 0.16}, {0, 0, 90}, Metal}, // rear rim
+		{EBikeShape::Cube, {0.0, 0, 0.47}, {0.5, 0.24, 0.28}, {0, 0, 0}, Metal},       // engine
+		{EBikeShape::Cube, {-0.38, 0, 0.38}, {0.66, 0.08, 0.06}, {10, 0, 0}, Metal},   // swingarm, down to the rear axle
+		{EBikeShape::Cube, {0.62, 0, 0.62}, {0.06, 0.2, 0.66}, {24, 0, 0}, Metal},     // fork, raked back
+		{EBikeShape::Cube, {0.26, 0, 0.78}, {0.52, 0.3, 0.2}, {-6, 0, 0}, Paint},      // tank
+		{EBikeShape::Cube, {-0.30, 0, 0.78}, {0.58, 0.26, 0.08}, {0, 0, 0}, Seat},     // seat
+		{EBikeShape::Cube, {-0.70, 0, 0.7}, {0.4, 0.2, 0.05}, {-10, 0, 0}, Paint},     // tail and rear guard, rising
+		{EBikeShape::Cube, {0.66, 0, 0.98}, {0.24, 0.32, 0.22}, {14, 0, 0}, Paint},    // headlamp cowl
+		{EBikeShape::Cube, {0.52, 0, 1.06}, {0.05, 0.72, 0.04}, {0, 0, 0}, Seat},      // handlebar
+		{EBikeShape::Cube, {-0.14, 0, 0.92}, {0.5, 0.38, 0.2}, {0, 0, 0}, Jeans},      // thighs on the seat
+		{EBikeShape::Cube, {0.08, 0.16, 0.58}, {0.12, 0.1, 0.46}, {-14, 0, 0}, Jeans},  // shins
+		{EBikeShape::Cube, {0.08, -0.16, 0.58}, {0.12, 0.1, 0.46}, {-14, 0, 0}, Jeans},
+		{EBikeShape::Cube, {-0.12, 0, 1.26}, {0.26, 0.4, 0.58}, {-24, 0, 0}, Jacket},  // torso, leaning in
+		{EBikeShape::Cube, {0.26, 0.2, 1.29}, {0.69, 0.09, 0.09}, {-41, 0, 0}, Jacket}, // arms, shoulders down to the bars
+		{EBikeShape::Cube, {0.26, -0.2, 1.29}, {0.69, 0.09, 0.09}, {-41, 0, 0}, Jacket},
+		{EBikeShape::Sphere, {0.04, 0, 1.7}, {0.28, 0.25, 0.27}, {0, 0, 0}, Helmet},    // helmet
+	};
+
 	struct FLaneLine
 	{
 		int32 Idx = 0;
@@ -151,6 +188,19 @@ ATollTrafficActor::ATollTrafficActor()
 		Ism->SetMobility(EComponentMobility::Movable);
 		if (Cube.Succeeded()) Ism->SetStaticMesh(Cube.Object);
 		ClassMeshes.Add(Ism);
+	}
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	for (int32 i = 0; i < UE_ARRAY_COUNT(BikeParts); ++i)
+	{
+		UInstancedStaticMeshComponent* Ism = CreateDefaultSubobject<UInstancedStaticMeshComponent>(*FString::Printf(TEXT("Bike_%d"), i));
+		Ism->SetupAttachment(SceneRoot);
+		Ism->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Ism->SetMobility(EComponentMobility::Movable);
+		const auto& Mesh = BikeParts[i].Shape == EBikeShape::Cylinder ? Cylinder : BikeParts[i].Shape == EBikeShape::Sphere ? Sphere : Cube;
+		if (Mesh.Succeeded()) Ism->SetStaticMesh(Mesh.Object);
+		BikeMeshes.Add(Ism);
 	}
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
@@ -480,6 +530,12 @@ bool ATollTrafficActor::LoadRoad()
 			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, this);
 			M->SetVectorParameterValue(TEXT("Color"), Looks[i].Color);
 			ClassMeshes[i]->SetMaterial(0, M);
+		}
+		for (int32 i = 0; i < BikeMeshes.Num(); ++i)
+		{
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, this);
+			M->SetVectorParameterValue(TEXT("Color"), FLinearColor::FromSRGBColor(BikeParts[i].Color));
+			BikeMeshes[i]->SetMaterial(0, M);
 		}
 	}
 
@@ -857,6 +913,52 @@ void ATollTrafficActor::FrameCamera()
 	Camera->SetWorldLocationAndRotation(Eye, (Target - Eye).Rotation());
 }
 
+void ATollTrafficActor::FollowCamera(const TArray<TollTraffic::FVisible>& Vis)
+{
+	// -TollCamFollow=<class> chases the vehicle of that class nearest the camera's plaza, from
+	// -TollCamEye=back,side,height in metres relative to the vehicle (default 9,3,2.2)
+	static FString Cls;
+	static const bool bFollow = FParse::Value(FCommandLine::Get(), TEXT("TollCamFollow="), Cls);
+	if (!bFollow) return;
+	int32 Pick = INDEX_NONE;
+	for (int32 i = 0; i < Vis.Num() && Pick == INDEX_NONE; ++i)
+	{
+		if (Vis[i].Id == FollowId) Pick = i;
+	}
+	if (Pick == INDEX_NONE)
+	{
+		FString Cam;
+		FString Plaza = StartPlaza;
+		if (FParse::Value(FCommandLine::Get(), TEXT("TollCam="), Cam) && Cam.StartsWith(TEXT("plaza:"))) Plaza = Cam.RightChop(6);
+		const FVector2D At = PlazaPos.FindRef(Plaza);
+		double Best = TNumericLimits<double>::Max();
+		for (int32 i = 0; i < Vis.Num(); ++i)
+		{
+			const double D = FVector2D::DistSquared(DrawnPos[i], At);
+			if (Vis[i].Cls == Cls && D < Best) Best = D, Pick = i;
+		}
+		if (Pick == INDEX_NONE) return;
+		FollowId = Vis[Pick].Id;
+		UE_LOG(LogTollScene, Log, TEXT("following vehicle %d, class %s"), FollowId, *Cls);
+	}
+	double Back = 9, Right = 3, Up = 2.2;
+	FString EyeArg;
+	TArray<FString> Parts;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TollCamEye="), EyeArg, false) && EyeArg.ParseIntoArray(Parts, TEXT(",")) == 3)
+	{
+		Back = FCString::Atod(*Parts[0]);
+		Right = FCString::Atod(*Parts[1]);
+		Up = FCString::Atod(*Parts[2]);
+	}
+	// heading is degrees clockwise from +Y (north)
+	const double H = FMath::DegreesToRadians(Vis[Pick].Heading);
+	const FVector2D Fwd(FMath::Sin(H), FMath::Cos(H)), Side(Fwd.Y, -Fwd.X);
+	const FVector2D Eye2 = DrawnPos[Pick] - Fwd * Back + Side * Right;
+	const FVector Eye = TollSpace::ToWorld(Origin, Eye2.X, Eye2.Y, Up);
+	const FVector Target = TollSpace::ToWorld(Origin, DrawnPos[Pick].X, DrawnPos[Pick].Y, 1.0);
+	Camera->SetWorldLocationAndRotation(Eye, (Target - Eye).Rotation());
+}
+
 void ATollTrafficActor::BeginPlay()
 {
 	Super::BeginPlay();
@@ -913,6 +1015,7 @@ void ATollTrafficActor::Tick(float DeltaSeconds)
 			Plazas[Ctx.Plaza]->NoteVehicle(Layouts[Ctx.Plaza], Ctx, TollTraffic::ClassLen(V.Cls), V.Speed);
 		}
 	}
+	FollowCamera(Vis);
 	for (ATollPlazaActor* P : Plazas)
 	{
 		P->Advance(FMath::Min(DeltaSeconds, 0.1f), Feed->GetRenderTime());
@@ -1004,7 +1107,28 @@ void ATollTrafficActor::Tick(float DeltaSeconds)
 		for (int32 w = 0; w < M.Wheels.Num(); ++w) SetInstances(M.Wheels[w].Ism, M.WheelXf[w], &M.Packed);
 	}
 
-	// boxes for everything without a model (motorbikes, or all of them without the pack)
+	// motorbikes: the primitive bike and rider, with a head lamp and one tail lamp
+	for (TArray<FTransform>& X : BikeXf) X.Reset();
+	BikeXf.SetNum(BikeMeshes.Num());
+	for (int32 i = 0; i < Vis.Num(); ++i)
+	{
+		const TollTraffic::FVisible& V = Vis[i];
+		if (Done[i] || LookIndex(V.Cls) != 0) continue;
+		Done[i] = true;
+		const FTransform Base(Body[i], TollSpace::ToWorld(Origin, DrawnPos[i].X, DrawnPos[i].Y, 0.02 + Bob[i]));
+		for (int32 k = 0; k < BikeMeshes.Num(); ++k)
+		{
+			const FBikePart& P = BikeParts[k];
+			BikeXf[k].Add(FTransform(P.Rot, P.Pos * 100.0, P.Scale) * Base);
+		}
+		const bool bBrake = Motion.FindRef(V.Id).Accel < -0.8;
+		const FVector LampScale(0.02, 0.12, 0.1);
+		if (bLampsOn) HeadXf.Add(FTransform(Body[i], Base.TransformPosition(FVector(79, 0, 98)), LampScale));
+		if (bLampsOn || bBrake) (bBrake ? BrakeXf : TailXf).Add(FTransform(Body[i], Base.TransformPosition(FVector(-89, 0, 70)), LampScale));
+	}
+	for (int32 k = 0; k < BikeMeshes.Num(); ++k) SetInstances(BikeMeshes[k], BikeXf[k]);
+
+	// boxes for everything without a model (all of them without the pack)
 	for (int32 c = 0; c < ClassMeshes.Num(); ++c)
 	{
 		Scratch.Reset();
